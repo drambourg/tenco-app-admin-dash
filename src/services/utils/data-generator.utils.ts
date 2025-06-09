@@ -72,7 +72,7 @@ export class DataGenerator {
     const temperatures: number[] = [];
     const coordinates: CoordinateData[] = [];
     const accuracies: number[] = [];
-
+    const speeds: number[] = [];
     for (let i = 0; i < dataCount; i += 1) {
       vibrations.push(this.generateVibrationData(dataRanges));
       temperatures.push(this.generateTemperature(dataRanges));
@@ -80,16 +80,17 @@ export class DataGenerator {
         latitude: position.latitude,
         longitude: position.longitude,
       });
+      speeds.push(0);
       accuracies.push(this.generateAccuracy(dataRanges));
     }
 
     return {
-      MACAddress: macAddress,
-      accuracies,
-      acqtime: Math.floor(Date.now() / 1000),
-      coordinates,
-      temperatures,
-      vibrations,
+      acc: accuracies,
+      coord: coordinates,
+      mac: macAddress,
+      temp: temperatures,
+      time: Math.floor(Date.now() / 1000),
+      vib: vibrations,
     };
   }
 

@@ -1,6 +1,8 @@
+import { Severity } from '@google-cloud/logging';
 import axios, { AxiosResponse } from 'axios';
 
 import { SensorData } from '../interfaces/data.interface';
+import gcpLogger from '../utils/gcp/gcp-logger';
 
 export class DataService {
   private static readonly TIMEOUT = 10000; // 10 seconds
@@ -70,6 +72,16 @@ export class DataService {
     const promises = endpoints.map((endpoint) =>
       this.sendToEndpoint(endpoint, data)
     );
+
+    gcpLogger({
+      fileLink: __filename,
+      message: `Sensor input Data`,
+      payload: {
+        data,
+      },
+      severity: Severity.info,
+      withCloudRunInfos: true,
+    });
 
     const results = await Promise.allSettled(promises);
     const successCount = results.filter(

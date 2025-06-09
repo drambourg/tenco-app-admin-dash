@@ -21,12 +21,13 @@ export interface CoordinateData {
 }
 
 export interface SensorPayload {
-  acqtime: number;
-  MACAddress: string;
-  vibrations: VibrationData[];
-  temperatures: number[];
-  coordinates: CoordinateData[];
-  accuracies: number[];
+  mac: string;
+  time: number;
+  vib: VibrationData[];
+  temp: number[];
+  coord: CoordinateData[];
+  acc: number[];
+  speed?: number[];
 }
 
 export interface SensorData {
