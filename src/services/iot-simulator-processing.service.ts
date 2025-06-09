@@ -138,6 +138,16 @@ export class IoTSimulator {
     );
 
     try {
+      gcpLogger({
+        fileLink: __filename,
+        message: `Sensor input Data`,
+        payload: {
+          sensorData,
+        },
+        severity: Severity.debug,
+        withCloudRunInfos: true,
+      });
+
       const { httpSuccess, pubsubSuccess } = await DataService.sendToAllTargets(
         this.config.endpoints,
         sensorData,
@@ -152,16 +162,6 @@ export class IoTSimulator {
         ? `Pub/Sub: ${pubsubSuccess ? '✅' : '❌'}`
         : '';
       const statusMsg = [httpMsg, pubsubMsg].filter(Boolean).join(', ');
-
-      gcpLogger({
-        fileLink: __filename,
-        message: `Sensor input Data`,
-        payload: {
-          sensorData,
-        },
-        severity: Severity.debug,
-        withCloudRunInfos: true,
-      });
 
       console.log(
         `📊 Sensor ${
