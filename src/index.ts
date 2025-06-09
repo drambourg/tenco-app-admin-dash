@@ -1,10 +1,9 @@
 import * as functions from '@google-cloud/functions-framework';
 import { Severity } from '@google-cloud/logging';
 
-import { API_RESPONSES, LOG_MESSAGES } from './config/config.const';
+import { LOG_MESSAGES } from './config/config.const';
 import validateEnv from './config/validateEnv';
 import { FUNCTION_NAMES } from './routes/routes.const';
-import { HTTP_CODES } from './utils/error';
 import gcpLogger from './utils/gcp/gcp-logger';
 import { createApp, createServer, getServerPort } from './utils/server';
 
@@ -35,11 +34,6 @@ const isCloudFunction = process.env.FUNCTION_TARGET || process.env.K_SERVICE;
 
 // Cloud Function registration
 functions.http(FUNCTION_NAMES.IOT_SIMULATOR, (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(HTTP_CODES.METHOD_NOT_ALLOWED).send({
-      error: API_RESPONSES.METHOD_NOT_ALLOWED.message,
-    });
-  }
   // Pass the request to the Express router
   // eslint-disable-next-line no-underscore-dangle
   app._router.handle(req, res);
