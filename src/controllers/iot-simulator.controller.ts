@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 
+import { SERVICE_SENSOR_DATA_DISPATCHER_URL } from '../config/config';
 import { API_RESPONSES } from '../config/config.const';
 import IoTSimulator from '../services/iot-simulator-processing.service';
 import { AppError, GENERIC_ERRORS, HTTP_CODES } from '../utils/error';
@@ -73,6 +74,8 @@ async function startIotSimulator(req: Request, res: Response) {
         error: 'durationMinutes is required and must be greater than 0',
       });
     }
+    if (SERVICE_SENSOR_DATA_DISPATCHER_URL)
+      this.config.endpoints.push(SERVICE_SENSOR_DATA_DISPATCHER_URL);
 
     simulator = new IoTSimulator(config);
     simulator.start();

@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { faker } from '@faker-js/faker';
 
-import { SERVICE_SENSOR_DATA_DISPATCHER_URL } from '../config/config';
 import {
   Position,
   SensorConfig,
@@ -139,11 +138,9 @@ export class IoTSimulator {
     // Send to endpoints
     try {
       const { endpoints } = this.config;
-      if (SERVICE_SENSOR_DATA_DISPATCHER_URL)
-        endpoints.push(SERVICE_SENSOR_DATA_DISPATCHER_URL);
 
       const successCount = await DataService.sendToAllEndpoints(
-        this.config.endpoints,
+        endpoints,
         sensorData
       );
 
