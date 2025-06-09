@@ -95,6 +95,7 @@ jobs:
             --source=dist \
             --entry-point=iot-simulator \
             --memory=$MEMORY \
+            --trigger-http \
             --service-account=$SERVICE_ACCOUNT \
             --set-env-vars=$ENV_VARS
             
