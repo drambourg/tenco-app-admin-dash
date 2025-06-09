@@ -1,0 +1,35 @@
+---
+
+# General Formatting Options
+
+# Number of spaces per indentation level
+tabWidth: 2
+
+# Add semicolons at the end of statements
+semi: true
+
+# Use single quotes for string literals
+singleQuote: true
+
+# Quote properties consistently, i.e., use single quotes or double quotes consistently for object properties
+quoteProps: "consistent"
+
+# Use single quotes for JSX attributes
+jsxSingleQuote: true
+
+# Trailing comma style for objects and arrays in ES5-compatible mode
+trailingComma: "es5"
+
+# Line ending style, LF (Unix-style) in this case
+endOfLine: "lf"
+
+# Handlebars Specific Options
+
+# Overrides for Handlebars files
+overrides:
+  - files: "*.hbs"
+    options:
+      parser: "html" # Use the Handlebars parser
+      htmlWhitespaceSensitivity: "strict" # HTML whitespace sensitivity
+      proseWrap: "preserve" # Preserve line breaks within text
+      javascriptBracketSameLine: true # Place JavaScript brackets on the same line

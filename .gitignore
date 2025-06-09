@@ -1,0 +1,33 @@
+# cspell:disable
+# Ignore the compiled output.
+build/
+
+# TypeScript incremental compilation cache
+*.tsbuildinfo
+
+
+# Node modules
+node_modules/
+
+# Intellij Configuration Files
+.idea/
+
+dist/
+
+.env
+.env.*
+!.env.dist
+
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.eslintcache
+
+
+# keys
+**.key.json
