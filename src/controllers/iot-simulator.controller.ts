@@ -74,8 +74,13 @@ async function startIotSimulator(req: Request, res: Response) {
         error: 'durationMinutes is required and must be greater than 0',
       });
     }
-    if (SERVICE_SENSOR_DATA_DISPATCHER_URL)
-      this.config.endpoints.push(SERVICE_SENSOR_DATA_DISPATCHER_URL);
+
+    if (SERVICE_SENSOR_DATA_DISPATCHER_URL) {
+      if (!config.endpoints) {
+        config.endpoints = [];
+      }
+      config.endpoints.push(SERVICE_SENSOR_DATA_DISPATCHER_URL);
+    }
 
     simulator = new IoTSimulator(config);
     simulator.start();
