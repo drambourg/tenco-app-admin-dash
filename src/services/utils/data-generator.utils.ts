@@ -79,7 +79,7 @@ export class DataGenerator {
       vibrations.push(this.generateVibrationData(dataRanges));
       temperatures.push(this.generateTemperature(dataRanges));
       coordinates.push([position.latitude, position.longitude]);
-      speeds.push(0);
+      speeds.push(1.39);
       accuracies.push(this.generateAccuracy(dataRanges));
     }
 
@@ -87,6 +87,7 @@ export class DataGenerator {
       acc: accuracies,
       coord: coordinates,
       mac: macAddress,
+      speed: speeds,
       temp: temperatures,
       time: Math.floor(Date.now() / 1000),
       vib: vibrations,

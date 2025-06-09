@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { faker } from '@faker-js/faker';
+import { Severity } from '@google-cloud/logging';
 
 import {
   Position,
   SensorConfig,
   SimulationConfig,
 } from '../interfaces/data.interface';
+import gcpLogger from '../utils/gcp/gcp-logger';
 import DataService from './data-simulator.service';
 import DataGenerator from './utils/data-generator.utils';
 import MovementSimulator from './utils/movement-simulator.utils';
@@ -150,6 +152,16 @@ export class IoTSimulator {
         ? `Pub/Sub: ${pubsubSuccess ? '✅' : '❌'}`
         : '';
       const statusMsg = [httpMsg, pubsubMsg].filter(Boolean).join(', ');
+
+      gcpLogger({
+        fileLink: __filename,
+        message: `Sensor input Data`,
+        payload: {
+          sensorData,
+        },
+        severity: Severity.debug,
+        withCloudRunInfos: true,
+      });
 
       console.log(
         `📊 Sensor ${
