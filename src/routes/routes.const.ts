@@ -1,8 +1,12 @@
 import { PORT } from '../config/config';
 
 export const API_ROUTES = {
+  HEALTH: '/health',
   ROOT: '/',
-  TASKS: '/tasks/:taskName',
+  START_SIMULATE: '/start',
+  STATUS_SIMULATE: '/status',
+  STOP_SIMULATE: '/stop',
+  TEST_SIMULATE: '/test',
 };
 
 export const SERVER = {

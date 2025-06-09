@@ -1,0 +1,6 @@
+export const DEFAULT_AMPLITUDE_MIN = 100;
+export const DEFAULT_AMPLITUDE_MAX = 150000;
+export const DEFAULT_TEMPERATURE_MIN = -20;
+export const DEFAULT_TEMPERATURE_MAX = 50;
+export const DEFAULT_ACCURACY_MIN = 1;
+export const DEFAULT_ACCURACY_MAX = 10;
