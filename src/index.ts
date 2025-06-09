@@ -27,31 +27,11 @@ try {
   process.exit(1);
 }
 
-// Application and server creation
+// Application creation
 const app = createApp();
-const server = createServer(app);
 
-// Shutdown handler function
-const handleShutdown = async (): Promise<void> => {
-  try {
-    server.close();
-    process.exit(0);
-  } catch (error) {
-    gcpLogger({
-      fileLink: __filename,
-      message: ` ${error.message}`,
-      payload: {
-        error: error.stack || error.message,
-      },
-      severity: Severity.error,
-    });
-    process.exit(1);
-  }
-};
-
-// Handling shutdown signals
-process.on('SIGTERM', handleShutdown);
-process.on('SIGINT', handleShutdown);
+// 🔧 SOLUTION : Vérifier si on est en mode Cloud Functions
+const isCloudFunction = process.env.FUNCTION_TARGET || process.env.K_SERVICE;
 
 // Cloud Function registration
 functions.http(FUNCTION_NAMES.IOT_SIMULATOR, (req, res) => {
@@ -65,20 +45,51 @@ functions.http(FUNCTION_NAMES.IOT_SIMULATOR, (req, res) => {
   app._router.handle(req, res);
 });
 
-// Server startup based on environment
-const startServer = async (port: number): Promise<void> => {
-  server.listen(port, async () => {
-    console.log(
-      process.env.NODE_ENV === 'development'
-        ? LOG_MESSAGES.DEV_SERVER_STARTED(port)
-        : LOG_MESSAGES.SERVER_STARTED(port)
-    );
-  });
-};
+// ✅ SERVEUR LOCAL UNIQUEMENT pour développement
+if (
+  !isCloudFunction &&
+  (process.env.NODE_ENV === 'development' || require.main === module)
+) {
+  const server = createServer(app);
 
-// Start the server
-const serverPort = getServerPort();
-startServer(serverPort);
+  // Shutdown handler function
+  const handleShutdown = async (): Promise<void> => {
+    try {
+      server.close();
+      process.exit(0);
+    } catch (error) {
+      gcpLogger({
+        fileLink: __filename,
+        message: ` ${error.message}`,
+        payload: {
+          error: error.stack || error.message,
+        },
+        severity: Severity.error,
+      });
+      process.exit(1);
+    }
+  };
+
+  // Handling shutdown signals
+  process.on('SIGTERM', handleShutdown);
+  process.on('SIGINT', handleShutdown);
+
+  // Server startup for local development
+  const startServer = async (port: number): Promise<void> => {
+    server.listen(port, async () => {
+      console.log(
+        process.env.NODE_ENV === 'development'
+          ? LOG_MESSAGES.DEV_SERVER_STARTED(port)
+          : LOG_MESSAGES.SERVER_STARTED(port)
+      );
+    });
+  };
+
+  // Start the server only in local mode
+  const serverPort = getServerPort();
+  startServer(serverPort);
+}
 
 // Export for testing purposes
-export { app, server };
+// eslint-disable-next-line import/prefer-default-export
+export { app };
