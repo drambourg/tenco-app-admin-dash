@@ -23,9 +23,9 @@ export interface CoordinateData {
 export interface SensorPayload {
   mac: string;
   time: number;
-  vib: VibrationData[];
+  vib: number[][];
   temp: number[];
-  coord: CoordinateData[];
+  coord: number[][];
   acc: number[];
   speed?: number[];
 }

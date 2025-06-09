@@ -9,30 +9,32 @@ import {
   DEFAULT_TEMPERATURE_MIN,
 } from '../../config/default-config-simulator';
 import {
-  CoordinateData,
   DataRanges,
   Position,
   SensorData,
   SensorPayload,
-  VibrationData,
 } from '../../interfaces/data.interface';
 
 export class DataGenerator {
   /**
    * Generates realistic vibration data
    */
-  static generateVibrationData(dataRanges?: DataRanges): VibrationData {
+  static generateVibrationData(dataRanges?: DataRanges): number[] {
     const amplitudeMin = dataRanges?.amplitude?.min ?? DEFAULT_AMPLITUDE_MIN;
     const amplitudeMax = dataRanges?.amplitude?.max ?? DEFAULT_AMPLITUDE_MAX;
 
-    return {
-      amplitude: faker.number.float({
-        max: amplitudeMax,
-        min: amplitudeMin,
-        multipleOf: 1,
-      }),
-      frequency: faker.number.float({ max: 1000, min: 10, multipleOf: 0.1 }),
-    };
+    const amplitude = faker.number.float({
+      max: amplitudeMax,
+      min: amplitudeMin,
+      multipleOf: 1,
+    });
+    const frequency = faker.number.float({
+      max: 1000,
+      min: 10,
+      multipleOf: 0.1,
+    });
+
+    return [frequency, amplitude];
   }
 
   /**
@@ -68,18 +70,15 @@ export class DataGenerator {
     dataRanges?: DataRanges,
     dataCount = 1
   ): SensorPayload {
-    const vibrations: VibrationData[] = [];
+    const vibrations: number[][] = [];
     const temperatures: number[] = [];
-    const coordinates: CoordinateData[] = [];
+    const coordinates: number[][] = [];
     const accuracies: number[] = [];
     const speeds: number[] = [];
     for (let i = 0; i < dataCount; i += 1) {
       vibrations.push(this.generateVibrationData(dataRanges));
       temperatures.push(this.generateTemperature(dataRanges));
-      coordinates.push({
-        latitude: position.latitude,
-        longitude: position.longitude,
-      });
+      coordinates.push([position.latitude, position.longitude]);
       speeds.push(0);
       accuracies.push(this.generateAccuracy(dataRanges));
     }
