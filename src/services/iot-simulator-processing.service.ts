@@ -144,7 +144,7 @@ export class IoTSimulator {
         payload: {
           sensorData,
         },
-        severity: Severity.debug,
+        severity: Severity.info,
         withCloudRunInfos: true,
       });
 
