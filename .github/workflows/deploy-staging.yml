@@ -17,7 +17,7 @@ env:
 
   SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL_STAGING}}
  
-  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME_STAGING || 'tenco-cloud-event-sensor-dispatcher-staging' }}
+  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME_STAGING || 'tenco-cloud-iot-simulator-staging' }}
 
   MEMORY: ${{ vars.MEMORY_STAGING || '1024Mi' }}
   CPU: ${{ vars.CPU_STAGING || '1' }}
