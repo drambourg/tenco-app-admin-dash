@@ -135,21 +135,28 @@ export class IoTSimulator {
       newPosition
     );
 
-    // Send to endpoints
     try {
-      const { endpoints } = this.config;
-
-      const successCount = await DataService.sendToAllEndpoints(
-        endpoints,
-        sensorData
+      const { httpSuccess, pubsubSuccess } = await DataService.sendToAllTargets(
+        this.config.endpoints,
+        sensorData,
+        this.config.pubsubTopic
       );
 
+      const httpMsg =
+        this.config.endpoints.length > 0
+          ? `${httpSuccess}/${this.config.endpoints.length} HTTP`
+          : '';
+      const pubsubMsg = this.config.pubsubTopic
+        ? `Pub/Sub: ${pubsubSuccess ? '✅' : '❌'}`
+        : '';
+      const statusMsg = [httpMsg, pubsubMsg].filter(Boolean).join(', ');
+
       console.log(
-        `📊 Sensor ${sensor.id}: ${successCount}/${
-          this.config.endpoints.length
-        } endpoints OK - Position (${newPosition.latitude.toFixed(
+        `📊 Sensor ${
+          sensor.id
+        }: ${statusMsg} - Position (${newPosition.latitude.toFixed(
           6
-        )}, ${newPosition.longitude.toFixed(6)}) direction ${newDirection}`
+        )}, ${newPosition.longitude.toFixed(6)}) ${newDirection}`
       );
     } catch (error) {
       console.error(`❌ Error for sensor ${sensor.id}:`, error.message);

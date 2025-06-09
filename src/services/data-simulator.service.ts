@@ -3,10 +3,18 @@ import axios, { AxiosResponse } from 'axios';
 
 import { SensorData } from '../interfaces/data.interface';
 import gcpLogger from '../utils/gcp/gcp-logger';
+import PubSubService from './pubsub-topic.service';
 
 export class DataService {
   private static readonly TIMEOUT = 10000; // 10 seconds
   private static readonly MAX_RETRIES = 3;
+
+  static async sendToPubSub(
+    topicName: string,
+    data: SensorData
+  ): Promise<boolean> {
+    return PubSubService.publishToTopic(topicName, data);
+  }
 
   /**
    * Sends data to an endpoint
@@ -89,6 +97,29 @@ export class DataService {
     ).length;
 
     return successCount;
+  }
+
+  static async sendToAllTargets(
+    endpoints: string[],
+    data: SensorData,
+    pubsubTopic?: string
+  ): Promise<{ httpSuccess: number; pubsubSuccess: boolean }> {
+    const results = {
+      httpSuccess: 0,
+      pubsubSuccess: false,
+    };
+
+    // HTTP endpoints
+    if (!pubsubTopic && endpoints.length > 0) {
+      results.httpSuccess = await this.sendToAllEndpoints(endpoints, data);
+    }
+
+    // Pub/Sub
+    if (pubsubTopic) {
+      results.pubsubSuccess = await this.sendToPubSub(pubsubTopic, data);
+    }
+
+    return results;
   }
 }
 

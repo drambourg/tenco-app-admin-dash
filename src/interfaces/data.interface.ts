@@ -52,6 +52,7 @@ export interface SimulationConfig {
   macAddresses: string[];
   endpoints: string[];
   sendIntervalMs: number;
+  pubsubTopic?: string;
 }
 
 export interface DataRanges {
