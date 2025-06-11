@@ -5,7 +5,8 @@ export const LOG_MESSAGES = {
     `Development server listening on port ${port}`,
   ENV_VALIDATED: 'Environment variables validated successfully',
   ENV_VALIDATION_FAILED: 'Failed to validate environment variables',
-
+  REDIS_ERROR: 'Redis connection error',
+  REDIS_INIT_FAILED: 'Failed to initialize Redis client',
   SERVER_STARTED: (port: number) => `Server listening on port ${port}`,
   SHUTDOWN_ERROR: 'Error during shutdown',
   SHUTDOWN_INITIATED: 'Server shutdown initiated...',

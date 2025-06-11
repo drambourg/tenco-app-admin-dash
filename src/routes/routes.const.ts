@@ -1,12 +1,12 @@
 import { PORT } from '../config/config';
 
 export const API_ROUTES = {
-  HEALTH: '/health',
-  ROOT: '/',
-  START_SIMULATE: '/start',
-  STATUS_SIMULATE: '/status',
-  STOP_SIMULATE: '/stop',
-  TEST_SIMULATE: '/test',
+  HEALTH: '/iot-simulator/health',
+  ROOT: '/iot-simulator/',
+  START_SIMULATE: '/iot-simulator/start',
+  STATUS_SIMULATE: '/iot-simulator/status',
+  STOP_SIMULATE: '/iot-simulator/stop',
+  TEST_SIMULATE: '/iot-simulator/test',
 };
 
 export const SERVER = {

@@ -9,6 +9,8 @@ const validateEnv = () => {
       GCP_PROJECT_ID: str(),
       NODE_ENV: str({ default: undefined }),
       PORT: port(),
+      REDIS_HOST: str(),
+      REDIS_PORT: port({ default: 6379 }),
     });
   } catch (error) {
     throw new AppError({

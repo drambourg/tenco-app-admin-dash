@@ -5,6 +5,10 @@ import { LOG_MESSAGES } from './config/config.const';
 import validateEnv from './config/validateEnv';
 import { FUNCTION_NAMES } from './routes/routes.const';
 import gcpLogger from './utils/gcp/gcp-logger';
+import {
+  closeRedisConnection,
+  getRedisClient,
+} from './utils/redis/redis-client';
 import { createApp, createServer, getServerPort } from './utils/server';
 
 // Environment validation
@@ -39,7 +43,6 @@ functions.http(FUNCTION_NAMES.IOT_SIMULATOR, (req, res) => {
   app._router.handle(req, res);
 });
 
-// ✅ SERVEUR LOCAL UNIQUEMENT pour développement
 if (
   !isCloudFunction &&
   (process.env.NODE_ENV === 'development' || require.main === module)
@@ -50,6 +53,7 @@ if (
   const handleShutdown = async (): Promise<void> => {
     try {
       server.close();
+      await closeRedisConnection();
       process.exit(0);
     } catch (error) {
       gcpLogger({
@@ -77,6 +81,15 @@ if (
           : LOG_MESSAGES.SERVER_STARTED(port)
       );
     });
+    try {
+      // Initialize Redis client and setup error handler
+      const redis = await getRedisClient();
+      redis.on('error', (err) => {
+        console.error(`${LOG_MESSAGES.REDIS_ERROR}:`, err);
+      });
+    } catch (error) {
+      console.error(`${LOG_MESSAGES.REDIS_INIT_FAILED}:`, error);
+    }
   };
 
   // Start the server only in local mode
