@@ -1,479 +1,329 @@
-# 🚀 IoT Sensor Simulator
+# Tenco Admin Dashboard
 
-A powerful Node.js/TypeScript application that simulates moving IoT sensors sending realistic data to your Cloud Run endpoints. Perfect for testing, development, and load testing of IoT data processing systems.
+A comprehensive administration dashboard and development tools platform for IoT applications, featuring Redis management and sensor simulation capabilities.
 
-## 📋 Table of Contents
+## 🚀 Features
 
-- [Features](#-features)
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [API Endpoints](#-api-endpoints)
-- [Usage Examples](#-usage-examples)
-- [Deployment](#-deployment)
-- [Data Format](#-data-format)
-- [Troubleshooting](#-troubleshooting)
+### Dashboard
 
-## ✨ Features
+- **Unified Interface**: Clean and modern dashboard with quick access to all tools
+- **Service Status**: Real-time monitoring of all integrated services
+- **Responsive Design**: Mobile-friendly interface with modern UI/UX
 
-- 🌍 **Realistic GPS Movement**: Sensors move at ~5 km/h with intelligent boundary handling
-- 📡 **Multi-Endpoint Support**: Send data to multiple Cloud Run endpoints simultaneously
-- 🎯 **Custom MAC Addresses**: Define specific MAC addresses for your sensors
-- ⏱️ **Timer-Based Control**: Set simulation duration in minutes
-- 📊 **Configurable Data Ranges**: Customize amplitude, temperature, and accuracy ranges
-- 🔄 **Smart Boundary Logic**: Automatic direction reversal with offset when hitting boundaries
-- 🧪 **Built-in Test Mode**: Quick testing with predefined settings
-- 📈 **Real-time Monitoring**: Live status and position tracking
-- 🛡️ **Error Handling**: Automatic retry logic and comprehensive error reporting
+### Redis Commander
 
-## 🚀 Quick Start
+- **Database Management**: Complete Redis database visualization and management
+- **Multi-Database Support**: Browse and manage multiple Redis databases
+- **Key Operations**: View, edit, delete keys with support for all Redis data types
+- **Real-time Statistics**: Monitor Redis performance and memory usage
+- **Pattern Search**: Advanced key filtering and pattern matching
 
-### 1. Clone and Install
+### IoT Simulator
+
+- **Multi-Sensor Simulation**: Generate realistic sensor data for testing
+- **Geolocation Support**: GPS coordinates with configurable boundaries
+- **Data Types**: Temperature, vibration, and environmental sensors
+- **Flexible Configuration**: Customizable sensor parameters and intervals
+- **Real-time Monitoring**: Live status and data flow visualization
+
+## 📋 Requirements
+
+- **Node.js**: >= 18.0.0
+- **Redis**: Running Redis instance (local or remote)
+- **Google Cloud Platform**: For deployment and logging (optional)
+
+## 🛠 Installation
+
+### Local Development
+
+1. **Clone the repository**
+
+   ```bash
+   git clone <repository-url>
+   cd admin-app-tenco
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment**
+
+   ```bash
+   cp .env.dist .env
+   ```
+
+   Edit `.env` with your configuration:
+
+   ```env
+   NODE_ENV=development
+   PORT=8080
+
+   # Redis Configuration
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   REDIS_PASSWORD=your-password-if-any
+
+   # Google Cloud Platform
+   GCP_PROJECT_ID=your-project-id
+   GCP_LOGGER_NAME=admin-app-tenco
+
+   # IoT Simulator
+   SERVICE_SENSOR_DATA_DISPATCHER_URL=your-endpoint-url
+   ```
+
+4. **Start development server**
+
+   ```bash
+   npm run start:dev
+   ```
+
+5. **Access the application**
+   - Dashboard: http://localhost:8080
+   - Redis Commander: http://localhost:8080/redis-commander
+   - IoT Simulator: http://localhost:8080/iot-simulator
+
+## 🏗 Build and Production
+
+### Build the application
 
 ```bash
-git clone <your-repo>
-cd iot-sensor-simulator
-npm install
+npm run build
 ```
 
-### 2. Start Development Server
+### Start production server
 
 ```bash
-npm run dev
+npm start
 ```
 
-### 3. Run Quick Test
+### Docker Deployment
 
 ```bash
-curl -X POST http://localhost:3000/test
+# Build Docker image
+docker build -t tenco-admin .
+
+# Run container
+docker run -p 8080:8080 --env-file .env tenco-admin
 ```
 
-## 📦 Installation
+## ☁️ Cloud Deployment
 
-### Prerequisites
+### Google Cloud Run
 
-- Node.js 18+
-- TypeScript
-- npm or yarn
+The application is designed for Cloud Run deployment with the included GitHub Actions workflow.
 
-### Install Dependencies
+#### Prerequisites
 
-```bash
-npm install
+- Google Cloud Project with Cloud Run enabled
+- Service Account with appropriate permissions
+- Redis instance (Google Cloud Memorystore or external)
+
+#### Environment Variables for Cloud Run
+
+```env
+NODE_ENV=production
+PORT=8080
+GCP_PROJECT_ID=your-project-id
+GCP_LOGGER_NAME=admin-app-tenco
+REDIS_HOST=your-redis-host
+REDIS_PORT=6379
+REDIS_PASSWORD=your-redis-password
+SERVICE_SENSOR_DATA_DISPATCHER_URL=your-endpoint
 ```
+
+#### GitHub Actions Deployment
+
+1. Configure repository secrets:
+
+   - `GCLOUD_PROJECT_ID_STAGING`
+   - `GCLOUD_SERVICE_KEY_STAGING`
+   - `GCP_SERVICE_ACCOUNT_STAGING`
+
+2. Configure repository variables:
+
+   - `REDIS_HOST_STAGING`
+   - `REDIS_PORT_STAGING`
+   - `SERVICE_SENSOR_DATA_DISPATCHER_URL_STAGING`
+
+3. Trigger deployment via GitHub Actions or push to `dev` branch
+
+## 🔧 Development
 
 ### Available Scripts
 
+- `npm run start:dev` - Start development server with hot reload
+- `npm run build` - Build production bundle
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint and TypeScript checks
+- `npm run lint:fix` - Fix linting issues automatically
+- `npm run typecheck` - Run TypeScript type checking
+- `npm run clean` - Clean build directory
+
+### Code Quality
+
+The project includes comprehensive code quality tools:
+
+- **ESLint**: Code linting with Airbnb TypeScript configuration
+- **Prettier**: Code formatting
+- **Husky**: Git hooks for pre-commit checks
+- **TypeScript**: Static type checking
+- **Commitlint**: Conventional commit message format
+
+### Git Workflow
+
 ```bash
-npm run dev      # Start development server with hot reload
-npm run build    # Build for production
-npm run start    # Start production server
-npm run deploy   # Deploy to Google Cloud Functions
+# Install git hooks
+npm run husky:prepare
+
+# Commits are automatically linted and formatted
+git add .
+git commit -m "feat: add new feature"
 ```
 
-## ⚙️ Configuration
+## 📁 Project Structure
+
+```
+src/
+├── controllers/           # Request handlers and business logic
+│   ├── dashboard.controller.ts
+│   ├── iot-simulator.controller.ts
+│   └── redis-commander.controller.ts
+├── routes/               # API route definitions
+│   ├── index.ts
+│   └── routes.const.ts
+├── services/             # Business logic and external integrations
+├── utils/                # Utility functions and helpers
+│   ├── gcp/              # Google Cloud Platform utilities
+│   ├── redis/            # Redis client and configuration
+│   └── server.ts         # Express server configuration
+├── config/               # Application configuration
+└── types/                # TypeScript type definitions
+```
+
+## 🔌 API Endpoints
+
+### Dashboard
+
+- `GET /` - Main dashboard interface
+- `GET /dashboard` - Alternative dashboard route
+
+### Redis Commander
+
+- `GET /redis-commander` - Redis management interface
+- `GET /redis-commander/api/info` - Redis server information
+- `GET /redis-commander/api/keys` - List Redis keys
+- `GET /redis-commander/api/key/:key` - Get key value
+- `DELETE /redis-commander/api/key/:key` - Delete key
+- `GET /redis-commander/health` - Redis health check
+
+### IoT Simulator
+
+- `GET /iot-simulator` - Simulator interface
+- `POST /iot-simulator/start` - Start simulation
+- `POST /iot-simulator/stop` - Stop simulation
+- `GET /iot-simulator/status` - Get simulation status
+- `POST /iot-simulator/test` - Test configuration
+- `GET /iot-simulator/health` - Health check
+
+## 🔒 Security
 
 ### Environment Variables
 
-Create a `.env` file:
+- All sensitive data should be stored in environment variables
+- Use `.env` files for local development (not committed to git)
+- Cloud deployment uses secure secret management
 
-```env
-PORT=3000
-NODE_ENV=development
-```
+### Redis Security
 
-### Simulation Configuration
+- Configure Redis password if exposed to public networks
+- Use Redis AUTH if authentication is enabled
+- Consider Redis SSL/TLS for production environments
 
-The simulator accepts a configuration object with these parameters:
+### Cloud Security
 
-```typescript
-interface SimulationConfig {
-  boundingBox: BoundingBox;      // GPS boundaries
-  durationMinutes: number;       // Total simulation time
-  macAddresses: string[];        // List of MAC addresses
-  endpoints: string[];           // Target endpoints
-  sendIntervalMs: number;        // Data send interval
-  dataRanges?: DataRanges;       // Optional data ranges
-}
-```
+- Service Account with minimal required permissions
+- Private Redis instances when possible
+- HTTPS-only in production (handled by Cloud Run)
 
-#### Bounding Box
-
-Define the GPS area where sensors will move:
-
-```javascript
-{
-  "boundingBox": {
-    "north": 48.9021,    // Northern boundary
-    "south": 48.8155,    // Southern boundary
-    "east": 2.4699,      // Eastern boundary
-    "west": 2.2241       // Western boundary
-  }
-}
-```
-
-#### Data Ranges (Optional)
-
-Customize sensor data ranges:
-
-```javascript
-{
-  "dataRanges": {
-    "amplitude": { "min": 50000, "max": 120000 },   // Vibration amplitude
-    "temperature": { "min": 15, "max": 35 },        // Temperature in °C
-    "accuracy": { "min": 2, "max": 8 }              // GPS accuracy in meters
-  }
-}
-```
-
-**Default Ranges:**
-
-- **Amplitude**: 100 - 150,000
-- **Temperature**: -20°C to 50°C
-- **Accuracy**: 1-10 meters
-
-## 🔗 API Endpoints
-
-### Control Endpoints
-
-| Method | Endpoint  | Description                         |
-| ------ | --------- | ----------------------------------- |
-| `POST` | `/start`  | Start simulation with custom config |
-| `POST` | `/test`   | Test config sent simulation         |
-| `POST` | `/stop`   | Stop running simulation             |
-| `GET`  | `/status` | Get simulation status               |
-| `GET`  | `/health` | Health check                        |
-| `GET`  | `/`       | API documentation                   |
-
-## 📖 Usage Examples
-
-### 1. Basic Simulation
-
-```bash
-curl -X POST http://localhost:3000/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "config": {
-      "boundingBox": {
-        "north": 48.9021,
-        "south": 48.8155,
-        "east": 2.4699,
-        "west": 2.2241
-      },
-      "durationMinutes": 30,
-      "macAddresses": [
-        "AA:BB:CC:DD:EE:01",
-        "AA:BB:CC:DD:EE:02"
-      ],
-      "endpoints": [
-        "https://your-cloud-run.run.app/api/sensor-data"
-      ],
-      "sendIntervalMs": 1000
-    }
-  }'
-```
-
-### 2. Industrial Testing Simulation
-
-```bash
-curl -X POST http://localhost:3000/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "config": {
-      "boundingBox": {
-        "north": 48.8700,
-        "south": 48.8500,
-        "east": 2.3700,
-        "west": 2.3300
-      },
-      "durationMinutes": 120,
-      "macAddresses": [
-        "INDUSTRIAL:01:02:03",
-        "INDUSTRIAL:04:05:06",
-        "INDUSTRIAL:07:08:09"
-      ],
-      "endpoints": [
-        "https://endpoint1.run.app/api/data",
-        "https://endpoint2.run.app/api/data"
-      ],
-      "sendIntervalMs": 500,
-      "dataRanges": {
-        "amplitude": { "min": 80000, "max": 140000 },
-        "temperature": { "min": 25, "max": 45 },
-        "accuracy": { "min": 0.5, "max": 2.0 }
-      }
-    }
-  }'
-```
-
-### 3. Load Testing
-
-```bash
-curl -X POST http://localhost:3000/start \
-  -H "Content-Type: application/json" \
-  -d '{
-    "config": {
-      "boundingBox": {
-        "north": 48.9021,
-        "south": 48.8155,
-        "east": 2.4699,
-        "west": 2.2241
-      },
-      "durationMinutes": 60,
-      "macAddresses": [
-        "LOAD:01", "LOAD:02", "LOAD:03", "LOAD:04", "LOAD:05",
-        "LOAD:06", "LOAD:07", "LOAD:08", "LOAD:09", "LOAD:10"
-      ],
-      "endpoints": [
-        "https://your-endpoint.run.app/api/sensor-data"
-      ],
-      "sendIntervalMs": 1000
-    }
-  }'
-```
-
-### 4. Check Status
-
-```bash
-curl http://localhost:3000/status
-```
-
-Response:
-
-```json
-{
-  "isRunning": true,
-  "totalSensors": 3,
-  "activeSensors": 3,
-  "config": { ... },
-  "sensorPositions": [
-    {
-      "id": "sensor-1",
-      "macAddress": "AA:BB:CC:DD:EE:01",
-      "position": {
-        "latitude": 48.8566,
-        "longitude": 2.3522
-      },
-      "direction": "north"
-    }
-  ]
-}
-```
-
-### 5. Stop Simulation
-
-```bash
-curl -X POST http://localhost:3000/stop
-```
-
-## 🚀 Deployment
-
-### Google Cloud Functions
-
-1. **Setup GCP CLI**
-
-```bash
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-```
-
-2. **Deploy**
-
-```bash
-npm run deploy
-```
-
-3. **Use Cloud Function**
-
-```bash
-curl -X POST https://REGION-PROJECT_ID.cloudfunctions.net/iot-simulator/start \
-  -H "Content-Type: application/json" \
-  -d '{"config": {...}}'
-```
-
-### Docker
-
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 8080
-CMD ["npm", "start"]
-```
-
-### Cloud Run
-
-```bash
-# Build and deploy
-gcloud run deploy iot-simulator \
-  --source . \
-  --region=europe-west1 \
-  --allow-unauthenticated
-```
-
-## 📡 Data Format
-
-### Sensor Data Structure
-
-The simulator sends data in this format:
-
-```json
-{
-  "timestamp": 1703875200,
-  "MACAddress": "AA:BB:CC:DD:EE:01",
-  "payload": {
-    "acqtime": 1703875200,
-    "MACAddress": "AA:BB:CC:DD:EE:01",
-    "vibrations": [
-      {
-        "frequency": 125.7,
-        "amplitude": 98432.1
-      }
-    ],
-    "temperatures": [23.4],
-    "coordinates": [
-      {
-        "latitude": 48.8566,
-        "longitude": 2.3522
-      }
-    ],
-    "accuracies": [3.2]
-  }
-}
-```
-
-### Data Fields
-
-| Field                  | Type   | Description                           |
-| ---------------------- | ------ | ------------------------------------- |
-| `timestamp`            | number | Unix timestamp                        |
-| `MACAddress`           | string | Sensor MAC address                    |
-| `payload.acqtime`      | number | Data acquisition time                 |
-| `payload.vibrations`   | array  | Vibration data (frequency, amplitude) |
-| `payload.temperatures` | array  | Temperature readings in °C            |
-| `payload.coordinates`  | array  | GPS coordinates (lat, lng)            |
-| `payload.accuracies`   | array  | GPS accuracy in meters                |
-
-## 🛠️ Troubleshooting
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-#### 1. Sensors Not Moving
+#### Redis Connection Failed
 
 ```bash
-# Check if simulation is running
-curl http://localhost:3000/status
+# Check Redis server status
+redis-cli ping
 
-# Verify bounding box is valid
-# Ensure north > south and east > west
+# Verify connection parameters
+echo $REDIS_HOST $REDIS_PORT
 ```
 
-#### 2. Endpoint Connection Failures
+#### Build Errors
 
 ```bash
-# Test endpoint manually
-curl -X POST https://your-endpoint.com/api/sensor-data \
-  -H "Content-Type: application/json" \
-  -d '{"test": "data"}'
+# Clean and rebuild
+npm run clean
+npm run build
 
-# Check simulator logs for retry attempts
+# Check TypeScript configuration
+npm run typecheck
 ```
 
-#### 3. Sensors Going Outside Bounds
-
-The simulator automatically handles boundary violations:
-
-- Reverses direction
-- Applies 2m offset
-- Uses reverse offset if needed
-- Implements fallback to current position
-
-#### 4. Performance Issues
+#### Memory Issues
 
 ```bash
-# Reduce send frequency
-"sendIntervalMs": 5000  # Send every 5 seconds
-
-# Reduce sensor count
-"macAddresses": ["SENSOR:01"]  # Single sensor
-
-# Use fewer endpoints
-"endpoints": ["https://single-endpoint.com/api/data"]
+# Increase Node.js memory limit
+export NODE_OPTIONS="--max-old-space-size=4096"
+npm start
 ```
 
-### Debug Mode
-
-Enable detailed logging:
+### Development Debugging
 
 ```bash
-NODE_ENV=development npm run dev
+# Enable debug logging
+export DEBUG=true
+npm run start:dev
+
+# Check Google Cloud logs (if configured)
+gcloud logging read "resource.type=cloud_run_revision"
 ```
 
-### Health Checks
+## 🤝 Contributing
 
-Monitor simulation health:
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/new-feature`
+3. Make your changes following the coding standards
+4. Run tests and linting: `npm run lint`
+5. Commit your changes: `git commit -m "feat: add new feature"`
+6. Push to the branch: `git push origin feature/new-feature`
+7. Submit a pull request
 
-```bash
-# Basic health
-curl http://localhost:3000/health
+### Code Standards
 
-# Detailed status
-curl http://localhost:3000/status
-```
+- Follow TypeScript and ESLint configurations
+- Use conventional commit messages
+- Add JSDoc comments for public functions
+- Maintain test coverage for new features
 
-## 📊 Performance Guidelines
+## 📄 License
 
-### Recommended Limits
+ISC License - see LICENSE file for details.
 
-| Scenario         | Sensors | Interval   | Duration   |
-| ---------------- | ------- | ---------- | ---------- |
-| **Development**  | 1-5     | 2000ms     | 10-30 min  |
-| **Testing**      | 5-20    | 1000ms     | 30-60 min  |
-| **Load Testing** | 20-100  | 500-1000ms | 60-180 min |
+## 👨‍💻 Author
 
-### Resource Usage
+**D. Rambourg**
 
-- **Memory**: ~50MB base + ~5MB per sensor
-- **CPU**: Minimal (mostly I/O bound)
-- **Network**: ~1KB per sensor per second
+For support or questions, please open an issue in the repository.
 
-## 🔧 Configuration Presets
+---
 
-### Urban Environment
+## 🔗 Related Documentation
 
-```json
-{
-  "dataRanges": {
-    "amplitude": { "min": 1000, "max": 15000 },
-    "temperature": { "min": 10, "max": 30 },
-    "accuracy": { "min": 3, "max": 8 }
-  }
-}
-```
-
-### Industrial Environment
-
-```json
-{
-  "dataRanges": {
-    "amplitude": { "min": 80000, "max": 140000 },
-    "temperature": { "min": 25, "max": 45 },
-    "accuracy": { "min": 0.5, "max": 2.0 }
-  }
-}
-```
-
-### High-Precision Testing
-
-```json
-{
-  "dataRanges": {
-    "amplitude": { "min": 5000, "max": 5100 },
-    "temperature": { "min": 20, "max": 21 },
-    "accuracy": { "min": 1, "max": 1.1 }
-  }
-}
-```
+- [Express.js Documentation](https://expressjs.com/)
+- [Redis Documentation](https://redis.io/documentation)
+- [Google Cloud Run Documentation](https://cloud.google.com/run/docs)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs/)

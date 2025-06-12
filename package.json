@@ -13,6 +13,7 @@
     "express": "^4.18.2",
     "geolib": "^3.3.4",
     "ioredis": "^5.6.1",
+    "redis-commander": "^0.9.0",
     "reflect-metadata": "^0.1.13"
   },
   "description": "Tenco App Dashboard and tools",
@@ -68,7 +69,7 @@
     "*": "cspell src/index.ts",
     "*.{js,json,ts}": "eslint --cache --fix --max-warnings=0"
   },
-  "name": "iot-sensor-simulator",
+  "name": "admin-app-tenco",
   "scripts": {
     "build": "npm run clean && copyfiles  \"tsconfig.json\" dist && tsc --project tsconfig.json && copyfiles -a -u 1 -e \"**/*.ts\" \"src/**/*\" dist && copyfiles  \"package.json\" dist",
     "clean": "rimraf dist",

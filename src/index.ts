@@ -37,7 +37,7 @@ const app = createApp();
 const isCloudFunction = process.env.FUNCTION_TARGET || process.env.K_SERVICE;
 
 // Cloud Function registration
-functions.http(FUNCTION_NAMES.IOT_SIMULATOR, (req, res) => {
+functions.http(FUNCTION_NAMES.ADMIN_APP, (req, res) => {
   // Pass the request to the Express router
   // eslint-disable-next-line no-underscore-dangle
   app._router.handle(req, res);

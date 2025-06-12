@@ -1,4 +1,4 @@
-name: Deploy to Cloud Run - Staging 
+name: Deploy Cloud Function Update Device - Staging 
 on:
   workflow_dispatch:
     inputs:
@@ -10,30 +10,33 @@ on:
 env:
   PROJECT_ID: "${{ secrets.GCLOUD_PROJECT_ID_STAGING }}"
   REGION: ${{ vars.GCLOUD_REGION || 'europe-west1'}}
-  SERVICE: iot-simulator-staging
-  FUNCTION_NAME: iot-simulator
+  SERVICE: admin-app-tenco
+  GCLOUD_SERVICE_KEY: ${{secrets.GCLOUD_SERVICE_KEY_STAGING}}
+  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME_STAGING || 'admin-app-tenco-staging' }}
   SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT_STAGING }}
-  GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY_STAGING }}
 
-  SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL_STAGING}}
- 
-  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME_STAGING || 'tenco-cloud-iot-simulator-staging' }}
-
-  MEMORY: ${{ vars.MEMORY_STAGING || '1024Mi' }}
+  MEMORY: ${{ vars.MEMORY_STAGING || '512Mi' }}
   CPU: ${{ vars.CPU_STAGING || '1' }}
   MAX_INSTANCES: ${{ vars.MAX_INSTANCES_STAGING || '1' }}
   MIN_INSTANCES: ${{ vars.MIN_INSTANCES_STAGING || '0' }}
   PORT: ${{ vars.PORT_STAGING || '8080' }}
-  CONCURRENCY: ${{ vars.CONCURRENCY_STAGING || '30' }}
-  TIMEOUT: ${{ vars.TIMEOUT_STAGING || '180' }}
+  CONCURRENCY: ${{ vars.CONCURRENCY_STAGING || '100' }}
+  TIMEOUT: ${{ vars.TIMEOUT_STAGING || '300' }}
 
+  SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL_STAGING}}
+ 
+
+  REDIS_HOST: ${{ vars.REDIS_HOST_STAGING }}
+  REDIS_PORT: ${{ vars.REDIS_PORT_STAGING || '6379' }}
 
 jobs:
-  deploy:
+  deploy-cloud-run:
+    name: Deploy Cloud Run
     permissions:
       contents: 'read'
       id-token: 'write'
-
+    outputs:
+      service_url: ${{ steps.deploy.outputs.SERVICE_URL }} 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout 🕵️
@@ -54,7 +57,7 @@ jobs:
 
       - name: Verify Required Variables ✅
         run: |
-          required_vars=("PROJECT_ID" "SERVICE_ACCOUNT" "GCLOUD_SERVICE_KEY")
+          required_vars=("PROJECT_ID" "SERVICE_ACCOUNT" "GCLOUD_SERVICE_KEY" "REDIS_HOST")
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Error: $var is not set."
@@ -70,36 +73,61 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
+
       
-      - name: Prepare for Deployment 🛠️
+      - name: Set up Docker Buildx 🐳
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create temporary Dockerfile
         run: |
-          # Créer un package.json spécifique pour le déploiement dans dist
-          cat > dist/package.json << EOF
-          {
-            "name": "cloud-function-iot-simulator",
-            "version": "1.0.0",
-            "main": "index.js",
-            "dependencies": $(node -e "console.log(JSON.stringify(require('./package.json').dependencies))")
-          }
+          cat > Dockerfile << 'EOF'
+          FROM node:20-slim
+          WORKDIR /app
+          COPY dist/ ./dist/
+          COPY package*.json ./
+          RUN npm ci --only=production
+          EXPOSE ${{ env.PORT }}
+          CMD ["node", "dist/index.js"]
           EOF
 
-      - name: Deploy to Cloud Function 🚀
+      - name: Configure Docker for EU GCR
+        run: |
+          gcloud auth configure-docker eu.gcr.io --quiet
+
+      - name: Build and push Docker image 🏗️
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: eu.gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run 🚀
         id: deploy
         run: |
-          ENV_VARS="NODE_ENV=stage,GCP_LOGGER_NAME=$GCP_LOGGER_NAME,GCLOUD_REGION=$GCLOUD_REGION,GCP_PROJECT_ID=$PROJECT_ID,SERVICE_SENSOR_DATA_DISPATCHER_URL=$SERVICE_SENSOR_DATA_DISPATCHER_URL,SERVICE_ACCOUNT=$SERVICE_ACCOUNT"
-        
-          gcloud functions deploy iot-simulator \
+          ENV_VARS="NODE_ENV=stage,DEBUG=$DEBUG,GCP_LOGGER_NAME=$GCP_LOGGER_NAME,GCP_PROJECT_ID=$PROJECT_ID,REDIS_HOST=$REDIS_HOST,REDIS_PORT=$REDIS_PORT,SERVICE_SENSOR_DATA_DISPATCHER_URL=$SERVICE_SENSOR_DATA_DISPATCHER_URL"
+          
+          # Déploiement sur Cloud Run avec gcloud directement
+          gcloud run deploy $SERVICE \
             --project=$PROJECT_ID \
             --region=$REGION \
-            --runtime=nodejs20 \
-            --source=dist \
-            --entry-point=iot-simulator \
+            --image=eu.gcr.io/$PROJECT_ID/$SERVICE:${{ github.sha }} \
+            --port=$PORT \
             --memory=$MEMORY \
-            --trigger-http \
+            --cpu=$CPU \
+            --max-instances=$MAX_INSTANCES \
+            --min-instances=$MIN_INSTANCES \
+            --concurrency=$CONCURRENCY \
+            --timeout=${TIMEOUT}s \
             --service-account=$SERVICE_ACCOUNT \
-            --set-env-vars=$ENV_VARS
+            --set-env-vars=$ENV_VARS \
+            --platform=managed \
+            --allow-unauthenticated
             
-      # If required, use the Cloud Run url output in later steps
-      - name: Show Deployment Info 👀
-        run: |
-          gcloud functions describe iot-simulator --region=$REGION
+          # Obtenir l'URL du service déployé
+          SERVICE_URL=$(gcloud run services describe $SERVICE --region=$REGION --format="value(status.url)")
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+
+      - name: Show Cloud Run Output 👀
+        run: echo ${{ steps.deploy.outputs.url }}

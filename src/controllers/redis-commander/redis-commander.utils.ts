@@ -1,0 +1,685 @@
+// HTML content for the interface (embedded to avoid file serving complexity)
+function getRedisCommanderHTML(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redis Commander</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 300;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .form-group label {
+            font-size: 0.9rem;
+            color: #666;
+            font-weight: 500;
+        }
+
+        input, select, button {
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            min-width: 100px;
+        }
+
+        button:hover {
+            background: #5a6fd8;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2rem;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+        }
+
+        .key-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .key-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .key-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .key-item.selected {
+            background-color: #e3f2fd;
+            border-left: 3px solid #667eea;
+        }
+
+        .key-name {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .key-meta {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .content-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .content-body {
+            padding: 1.5rem;
+        }
+
+        .value-display {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 1rem;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: #667eea;
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .error {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            color: #c53030;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 1rem;
+            color: #999;
+        }
+
+        .patterns-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .pattern-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 3px solid #667eea;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .pattern-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .pattern-name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .pattern-count {
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .pattern-desc {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗃️ Redis Commander</h1>
+    </div>
+
+    <div class="container">
+        <!-- Statistics -->
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <h3>Total Keys</h3>
+                <div class="value" id="totalKeys">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Hit Rate</h3>
+                <div class="value" id="hitRate">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Memory Used</h3>
+                <div class="value" id="memoryUsed">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Connected Clients</h3>
+                <div class="value" id="connectedClients">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Redis Version</h3>
+                <div class="value" id="redisVersion">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Uptime</h3>
+                <div class="value" id="uptime">-</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="controls-row">
+                <div class="form-group">
+                    <label>Database</label>
+                    <select id="databaseSelect">
+                        <option value="0">DB 0</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Key Pattern</label>
+                    <input type="text" id="patternInput" value="*" placeholder="e.g. user:*">
+                </div>
+                <div class="form-group">
+                    <label>Limit</label>
+                    <input type="number" id="limitInput" value="100" min="1" max="1000">
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button onclick="loadKeys()">🔍 Search</button>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button onclick="refreshStats()">🔄 Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Patterns -->
+        <div class="patterns-grid" id="patternsGrid"></div>
+
+        <!-- Main Content -->
+        <div class="content-grid">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    Keys (<span id="keyCount">0</span>)
+                </div>
+                <div class="key-list" id="keyList">
+                    <div class="empty-state">
+                        <h3>No keys found</h3>
+                        <p>Try adjusting your search pattern</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-content">
+                <div class="content-header">
+                    <div>
+                        <span id="selectedKeyName">Select a key to view its value</span>
+                        <span id="selectedKeyType"></span>
+                    </div>
+                    <div>
+                        <button id="deleteBtn" onclick="deleteCurrentKey()" style="background: #dc3545; display: none;">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                </div>
+                <div class="content-body">
+                    <div id="keyValue" class="empty-state">
+                        <h3>Welcome to Redis Commander</h3>
+                        <p>Select a key from the sidebar to view its content</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/redis-commander';
+        let currentKey = null;
+        let currentDatabase = 0;
+
+        // Initialize the application
+        async function init() {
+            await refreshStats();
+            await loadDatabases();
+            await loadKeyPatterns();
+            await loadKeys();
+        }
+
+        // Load Redis statistics
+        async function refreshStats() {
+            try {
+                const response = await fetch(API_BASE + '/stats');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const stats = result.data;
+                    document.getElementById('totalKeys').textContent = stats.totalKeys.toLocaleString();
+                    document.getElementById('hitRate').textContent = stats.hitRate.toFixed(1) + '%';
+                    document.getElementById('memoryUsed').textContent = formatBytes(stats.totalMemory.used);
+                    document.getElementById('connectedClients').textContent = stats.connectedClients;
+                    document.getElementById('redisVersion').textContent = stats.version;
+                    document.getElementById('uptime').textContent = formatUptime(stats.uptime);
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Load available databases
+        async function loadDatabases() {
+            try {
+                const response = await fetch(API_BASE + '/databases');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const select = document.getElementById('databaseSelect');
+                    select.innerHTML = '';
+                    
+                    result.data.forEach(db => {
+                        const option = document.createElement('option');
+                        option.value = db.db;
+                        option.textContent = \`DB \${db.db} (\${db.keyCount} keys)\`;
+                        select.appendChild(option);
+                    });
+
+                    select.addEventListener('change', (e) => {
+                        currentDatabase = parseInt(e.target.value);
+                        loadKeys();
+                        loadKeyPatterns();
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading databases:', error);
+            }
+        }
+
+        // Load key patterns
+        async function loadKeyPatterns() {
+            try {
+                const response = await fetch(API_BASE + '/patterns?database=' + currentDatabase);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const grid = document.getElementById('patternsGrid');
+                    grid.innerHTML = '';
+                    
+                    result.data.slice(0, 8).forEach(pattern => {
+                        const card = document.createElement('div');
+                        card.className = 'pattern-card';
+                        card.onclick = () => {
+                            document.getElementById('patternInput').value = pattern.pattern;
+                            loadKeys();
+                        };
+                        
+                        card.innerHTML = \`
+                            <div class="pattern-name">\${pattern.pattern}</div>
+                            <div class="pattern-count">\${pattern.count} keys</div>
+                            <div class="pattern-desc">\${pattern.description}</div>
+                        \`;
+                        grid.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading patterns:', error);
+            }
+        }
+
+        // Load keys
+        async function loadKeys() {
+            const pattern = document.getElementById('patternInput').value || '*';
+            const limit = document.getElementById('limitInput').value || 100;
+            
+            try {
+                document.getElementById('keyList').innerHTML = '<div class="loading">Loading keys...</div>';
+                
+                const response = await fetch(API_BASE + '/keys?database=' + currentDatabase + '&pattern=' + encodeURIComponent(pattern) + '&limit=' + limit);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayKeys(result.data);
+                } else {
+                    document.getElementById('keyList').innerHTML = \`<div class="error">Error: \${result.error}</div>\`;
+                }
+            } catch (error) {
+                document.getElementById('keyList').innerHTML = \`<div class="error">Error loading keys: \${error.message}</div>\`;
+            }
+        }
+
+        // Display keys in sidebar
+        function displayKeys(keys) {
+            const keyList = document.getElementById('keyList');
+            const keyCount = document.getElementById('keyCount');
+            
+            keyCount.textContent = keys.length;
+            
+            if (keys.length === 0) {
+                keyList.innerHTML = \`
+                    <div class="empty-state">
+                        <h3>No keys found</h3>
+                        <p>Try adjusting your search pattern</p>
+                    </div>
+                \`;
+                return;
+            }
+            
+            keyList.innerHTML = '';
+            
+            keys.forEach(key => {
+                const keyItem = document.createElement('div');
+                keyItem.className = 'key-item';
+                keyItem.onclick = () => selectKey(key.key, keyItem);
+                
+                keyItem.innerHTML = \`
+                    <div class="key-name">\${key.key}</div>
+                    <div class="key-meta">
+                        <span class="type-badge">\${key.type}</span>
+                        Size: \${key.size} | TTL: \${key.ttl === -1 ? 'No expiry' : key.ttl + 's'}
+                    </div>
+                \`;
+                
+                keyList.appendChild(keyItem);
+            });
+        }
+
+        // Select a key and load its value
+        async function selectKey(keyName, element) {
+            // Update UI
+            document.querySelectorAll('.key-item').forEach(item => item.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            currentKey = keyName;
+            document.getElementById('selectedKeyName').textContent = keyName;
+            document.getElementById('deleteBtn').style.display = 'block';
+            
+            // Load key value
+            try {
+                document.getElementById('keyValue').innerHTML = '<div class="loading">Loading value...</div>';
+                
+                const response = await fetch(API_BASE + '/key/' + encodeURIComponent(keyName) + '?database=' + currentDatabase);
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayKeyValue(result.data);
+                } else {
+                    document.getElementById('keyValue').innerHTML = \`<div class="error">Error: \${result.error}</div>\`;
+                }
+            } catch (error) {
+                document.getElementById('keyValue').innerHTML = \`<div class="error">Error loading value: \${error.message}</div>\`;
+            }
+        }
+
+        // Display key value
+        function displayKeyValue(data) {
+            const typeElement = document.getElementById('selectedKeyType');
+            typeElement.innerHTML = \`<span class="type-badge">\${data.type}</span>\`;
+            
+            let formattedValue;
+            
+            try {
+                // Format value based on type
+                switch (data.type) {
+                    case 'string':
+                        formattedValue = typeof data.value === 'object' 
+                            ? JSON.stringify(data.value, null, 2)
+                            : data.value;
+                        break;
+                    case 'hash':
+                    case 'set':
+                    case 'zset':
+                    case 'list':
+                        formattedValue = JSON.stringify(data.value, null, 2);
+                        break;
+                    default:
+                        formattedValue = String(data.value);
+                }
+            } catch (error) {
+                formattedValue = String(data.value);
+            }
+            
+            document.getElementById('keyValue').innerHTML = \`
+                <div style="margin-bottom: 1rem;">
+                    <strong>Type:</strong> \${data.type} | 
+                    <strong>TTL:</strong> \${data.ttl === -1 ? 'No expiry' : data.ttl + ' seconds'} | 
+                    <strong>Size:</strong> \${data.size}
+                </div>
+                <div class="value-display">\${formattedValue}</div>
+            \`;
+        }
+
+        // Delete current key
+        async function deleteCurrentKey() {
+            if (!currentKey) return;
+            
+            if (!confirm(\`Are you sure you want to delete key: \${currentKey}?\`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + '/key/' + encodeURIComponent(currentKey) + '?database=' + currentDatabase, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Key deleted successfully');
+                    currentKey = null;
+                    document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
+                    document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('deleteBtn').style.display = 'none';
+                    document.getElementById('keyValue').innerHTML = \`
+                        <div class="empty-state">
+                            <h3>Key deleted</h3>
+                            <p>Select another key to view its content</p>
+                        </div>
+                    \`;
+                    await loadKeys(); // Refresh key list
+                    await refreshStats(); // Refresh stats
+                } else {
+                    alert(\`Error deleting key: \${result.error}\`);
+                }
+            } catch (error) {
+                alert(\`Error deleting key: \${error.message}\`);
+            }
+        }
+
+        // Utility functions
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) {
+                return \`\${days}d \${hours}h \${minutes}m\`;
+            } else if (hours > 0) {
+                return \`\${hours}h \${minutes}m\`;
+            } else {
+                return \`\${minutes}m\`;
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Auto-refresh stats every 30 seconds
+        setInterval(refreshStats, 30000);
+    </script>
+</body>
+</html>`;
+}
+
+// eslint-disable-next-line import/prefer-default-export
+export { getRedisCommanderHTML };
