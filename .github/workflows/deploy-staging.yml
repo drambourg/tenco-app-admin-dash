@@ -1,4 +1,4 @@
-name: Deploy Cloud Function Update Device - Staging 
+name: Deploy Cloud Function Tenco App Dashboard - Staging 
 on:
   workflow_dispatch:
     inputs:
