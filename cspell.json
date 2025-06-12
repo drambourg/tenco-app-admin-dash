@@ -42,6 +42,7 @@
     "maxmemory",
     "Millis",
     "nanos",
+    "nosniff",
     "openai",
     "ordinality",
     "papaparse",

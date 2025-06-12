@@ -24,7 +24,3 @@ export const SERVER = {
   DEFAULT_PORT: 8080,
   DEV_PORT: Number(PORT),
 };
-
-export const FUNCTION_NAMES = {
-  ADMIN_APP: 'admin-app',
-};

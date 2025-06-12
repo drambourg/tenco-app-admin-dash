@@ -1,15 +1,13 @@
-import * as functions from '@google-cloud/functions-framework';
 import { Severity } from '@google-cloud/logging';
 
 import { LOG_MESSAGES } from './config/config.const';
 import validateEnv from './config/validateEnv';
-import { FUNCTION_NAMES } from './routes/routes.const';
 import gcpLogger from './utils/gcp/gcp-logger';
 import {
   closeRedisConnection,
   getRedisClient,
 } from './utils/redis/redis-client';
-import { createApp, createServer, getServerPort } from './utils/server';
+import { createApp, getServerPort } from './utils/server';
 
 // Environment validation
 try {
@@ -33,70 +31,117 @@ try {
 // Application creation
 const app = createApp();
 
-// 🔧 SOLUTION : Vérifier si on est en mode Cloud Functions
-const isCloudFunction = process.env.FUNCTION_TARGET || process.env.K_SERVICE;
+/// Graceful shutdown handler
+const handleShutdown = async (): Promise<void> => {
+  console.log('🔄 Shutting down gracefully...');
+  try {
+    await closeRedisConnection();
+    console.log('✅ Redis connection closed');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    gcpLogger({
+      fileLink: __filename,
+      message: `Shutdown error: ${error.message}`,
+      payload: {
+        error: error.stack || error.message,
+      },
+      severity: Severity.error,
+    });
+    process.exit(1);
+  }
+};
 
-// Cloud Function registration
-functions.http(FUNCTION_NAMES.ADMIN_APP, (req, res) => {
-  // Pass the request to the Express router
-  // eslint-disable-next-line no-underscore-dangle
-  app._router.handle(req, res);
-});
+// Handling shutdown signals
+process.on('SIGTERM', handleShutdown);
+process.on('SIGINT', handleShutdown);
+// Start server function
+const startServer = async (): Promise<void> => {
+  const port = getServerPort();
 
-if (
-  !isCloudFunction &&
-  (process.env.NODE_ENV === 'development' || require.main === module)
-) {
-  const server = createServer(app);
+  // ✅ IMPORTANT: Listen on 0.0.0.0 for Cloud Run
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`🚀 Tenco Admin App started successfully`);
+    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Server running on port ${port}`);
+    console.log(`📱 Dashboard: http://localhost:${port}/`);
+    console.log(`🗃️ Redis Commander: http://localhost:${port}/redis-commander`);
+    console.log(`📡 IoT Simulator: http://localhost:${port}/iot-simulator`);
 
-  // Shutdown handler function
-  const handleShutdown = async (): Promise<void> => {
-    try {
-      server.close();
-      await closeRedisConnection();
-      process.exit(0);
-    } catch (error) {
+    gcpLogger({
+      fileLink: __filename,
+      message: 'Application started successfully',
+      payload: {
+        environment: process.env.NODE_ENV,
+        pid: process.pid,
+        port,
+      },
+      severity: Severity.info,
+    });
+  });
+
+  // Set server timeout for Cloud Run
+  server.timeout = 0; // Disable timeout
+  server.keepAliveTimeout = 5000;
+  server.headersTimeout = 10000;
+
+  // Initialize Redis connection
+  try {
+    console.log('🔄 Initializing Redis connection...');
+    const redis = await getRedisClient();
+
+    redis.on('error', (err) => {
+      console.error(`❌ Redis error:`, err);
       gcpLogger({
         fileLink: __filename,
-        message: ` ${error.message}`,
-        payload: {
-          error: error.stack || error.message,
-        },
+        message: 'Redis connection error',
+        payload: { error: err.message },
         severity: Severity.error,
       });
-      process.exit(1);
-    }
-  };
-
-  // Handling shutdown signals
-  process.on('SIGTERM', handleShutdown);
-  process.on('SIGINT', handleShutdown);
-
-  // Server startup for local development
-  const startServer = async (port: number): Promise<void> => {
-    server.listen(port, async () => {
-      console.log(
-        process.env.NODE_ENV === 'development'
-          ? LOG_MESSAGES.DEV_SERVER_STARTED(port)
-          : LOG_MESSAGES.SERVER_STARTED(port)
-      );
     });
-    try {
-      // Initialize Redis client and setup error handler
-      const redis = await getRedisClient();
-      redis.on('error', (err) => {
-        console.error(`${LOG_MESSAGES.REDIS_ERROR}:`, err);
-      });
-    } catch (error) {
-      console.error(`${LOG_MESSAGES.REDIS_INIT_FAILED}:`, error);
+
+    redis.on('connect', () => {
+      console.log('✅ Redis connected successfully');
+    });
+
+    redis.on('ready', () => {
+      console.log('✅ Redis ready for operations');
+    });
+
+    console.log('✅ Redis client initialized');
+  } catch (error) {
+    console.error(`❌ Redis initialization failed:`, error);
+    gcpLogger({
+      fileLink: __filename,
+      message: 'Redis initialization failed',
+      payload: { error: error.message },
+      severity: Severity.warning, // Warning instead of error to not crash the app
+    });
+    // Don't exit - let the app run without Redis if needed
+  }
+
+  // Handle server errors
+  server.on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${port} is already in use`);
+    } else {
+      console.error(`❌ Server error:`, error);
     }
-  };
+    process.exit(1);
+  });
+};
 
-  // Start the server only in local mode
-  const serverPort = getServerPort();
-  startServer(serverPort);
-}
-
+// Start the server
+startServer().catch((error) => {
+  console.error('❌ Failed to start server:', error);
+  gcpLogger({
+    fileLink: __filename,
+    message: 'Failed to start server',
+    payload: { error: error.message },
+    severity: Severity.critical,
+  });
+  process.exit(1);
+});
 // Export for testing purposes
 // eslint-disable-next-line import/prefer-default-export
 export { app };
