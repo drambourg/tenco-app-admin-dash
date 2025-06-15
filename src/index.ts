@@ -2,6 +2,7 @@ import { Severity } from '@google-cloud/logging';
 
 import { LOG_MESSAGES } from './config/config.const';
 import validateEnv from './config/validateEnv';
+import BullBoardService from './services/bull-board/bull-board.service';
 import gcpLogger from './utils/gcp/gcp-logger';
 import {
   closeRedisConnection,
@@ -35,6 +36,11 @@ const app = createApp();
 const handleShutdown = async (): Promise<void> => {
   console.log('🔄 Shutting down gracefully...');
   try {
+    // Close Bull Board service
+    const bullBoardService = BullBoardService.getInstance();
+    await bullBoardService.cleanup();
+    console.log('✅ Bull Board service closed');
+
     await closeRedisConnection();
     console.log('✅ Redis connection closed');
     process.exit(0);
@@ -66,6 +72,7 @@ const startServer = async (): Promise<void> => {
     console.log(`🌐 Server running on port ${port}`);
     console.log(`📱 Dashboard: http://localhost:${port}/`);
     console.log(`🗃️ Redis Commander: http://localhost:${port}/redis-commander`);
+    console.log(`📊 Bull Board: http://localhost:${port}/bull-board`);
     console.log(`📡 IoT Simulator: http://localhost:${port}/iot-simulator`);
 
     gcpLogger({
@@ -118,6 +125,32 @@ const startServer = async (): Promise<void> => {
       severity: Severity.warning, // Warning instead of error to not crash the app
     });
     // Don't exit - let the app run without Redis if needed
+  }
+
+  try {
+    console.log('🔄 Initializing Bull Board service...');
+    const bullBoardService = BullBoardService.getInstance();
+    await bullBoardService.initialize();
+
+    // Test Bull Board health
+    const health = await bullBoardService.getHealth();
+    if (health.healthy) {
+      console.log('✅ Bull Board service initialized successfully');
+      console.log(`📊 Queue monitored: ${health.queueName}`);
+    } else {
+      console.log(
+        `⚠️ Bull Board service initialized but unhealthy: ${health.error}`
+      );
+    }
+  } catch (error) {
+    console.error(`❌ Bull Board initialization failed:`, error);
+    gcpLogger({
+      fileLink: __filename,
+      message: 'Bull Board initialization failed',
+      payload: { error: error.message },
+      severity: Severity.warning, // Warning instead of error to not crash the app
+    });
+    // Don't exit - let the app run without Bull Board if needed
   }
 
   // Handle server errors

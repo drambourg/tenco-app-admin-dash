@@ -1,5 +1,11 @@
 import { Router } from 'express';
 
+import {
+  bullBoardController,
+  cleanCompleted as bullCleanCompleted,
+  getStats as bullGetStats,
+  healthCheck as bullHealthCheck,
+} from '../controllers/bull-board/bull-board.controller';
 import { serveHomePage } from '../controllers/dashboard-controller';
 import {
   appIotSimulator,
@@ -46,5 +52,12 @@ router.get(API_ROUTES.REDIS_COMMANDER_KEYS, getKeys);
 router.get(API_ROUTES.REDIS_COMMANDER_PATTERNS, getKeyPatterns);
 router.get(API_ROUTES.REDIS_COMMANDER_KEY_VALUE, getValue);
 router.delete(API_ROUTES.REDIS_COMMANDER_KEY_DELETE, deleteKey);
+
+// ✨ BULL BOARD ROUTES - Job queue monitoring
+router.get(API_ROUTES.BULL_BOARD_HEALTH, bullHealthCheck);
+router.get(API_ROUTES.BULL_BOARD_STATS, bullGetStats);
+router.post(API_ROUTES.BULL_BOARD_CLEAN, bullCleanCompleted);
+
+router.use('/bull-board', bullBoardController.getMiddleware());
 
 export default router;

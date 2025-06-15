@@ -1,4 +1,5 @@
 /* eslint-disable class-methods-use-this */
+// src/controllers/dashboard.controller.ts
 
 import { Severity } from '@google-cloud/logging';
 import { Request, Response } from 'express';
@@ -7,7 +8,7 @@ import gcpLogger from '../utils/gcp/gcp-logger';
 
 export class DashboardController {
   /**
-   * Serve dashboard home page
+   * Serve dashboard home page with Bull Board integration
    */
   public serveHomePage = async (req: Request, res: Response): Promise<void> => {
     const functionName = 'serveHomePage';
@@ -35,7 +36,7 @@ export class DashboardController {
   };
 
   /**
-   * Simple dashboard HTML
+   * Enhanced dashboard HTML with Bull Board card
    */
   private getDashboardHTML(): string {
     return `<!DOCTYPE html>
@@ -192,6 +193,10 @@ export class DashboardController {
             background: #f56565;
         }
 
+        .status-warning {
+            background: #ed8936;
+        }
+
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -267,6 +272,29 @@ export class DashboardController {
                 </button>
             </a>
 
+            <!-- Bull Board Card -->
+            <a href="/bull-board" class="card">
+                <div class="card-icon">📊</div>
+                <h2 class="card-title">
+                    <span class="status-indicator status-online"></span>
+                    Bull Board
+                </h2>
+                <p class="card-description">
+                    Surveillance et gestion des jobs de traitement des données. 
+                    Monitorez la queue process-datapoint-queue en temps réel.
+                </p>
+                <ul class="card-features">
+                    <li>États des jobs (waiting, active, completed)</li>
+                    <li>Retry et nettoyage des jobs</li>
+                    <li>Statistiques détaillées</li>
+                    <li>Logs et erreurs</li>
+                    <li>Contrôle des queues</li>
+                </ul>
+                <button class="card-button">
+                    Surveiller les jobs →
+                </button>
+            </a>
+
             <!-- IoT Simulator Card -->
             <a href="/iot-simulator" class="card">
                 <div class="card-icon">📡</div>
@@ -296,17 +324,18 @@ export class DashboardController {
         <div class="container">
             <p>
                 Tenco Admin Dashboard v1.0 | 
-                <a href="/iot-simulator/health">Status</a> | 
-                <a href="/redis-commander/health">Redis Health</a>
+                <a href="/iot-simulator/health">IoT Status</a> | 
+                <a href="/redis-commander/health">Redis Health</a> |
+                <a href="/bull-board-health">Jobs Health</a>
             </p>
         </div>
     </div>
 
     <script>
-        // Simple status check for visual feedback
+        // Enhanced status check including Bull Board
         async function checkServices() {
+            // Check Redis Commander
             try {
-                // Check Redis Commander
                 const redisResponse = await fetch('/redis-commander/health');
                 const redisStatus = document.querySelector('.card[href="/redis-commander"] .status-indicator');
                 if (redisResponse.ok) {
@@ -319,8 +348,27 @@ export class DashboardController {
                 redisStatus.className = 'status-indicator status-offline';
             }
 
+            // Check Bull Board
             try {
-                // Check IoT Simulator
+                const bullResponse = await fetch('/bull-board-health');
+                const bullStatus = document.querySelector('.card[href="/bull-board"] .status-indicator');
+                if (bullResponse.ok) {
+                    const data = await bullResponse.json();
+                    if (data.success) {
+                        bullStatus.className = 'status-indicator status-online';
+                    } else {
+                        bullStatus.className = 'status-indicator status-warning';
+                    }
+                } else {
+                    bullStatus.className = 'status-indicator status-offline';
+                }
+            } catch (error) {
+                const bullStatus = document.querySelector('.card[href="/bull-board"] .status-indicator');
+                bullStatus.className = 'status-indicator status-offline';
+            }
+
+            // Check IoT Simulator
+            try {
                 const iotResponse = await fetch('/iot-simulator/health');
                 const iotStatus = document.querySelector('.card[href="/iot-simulator"] .status-indicator');
                 if (iotResponse.ok) {

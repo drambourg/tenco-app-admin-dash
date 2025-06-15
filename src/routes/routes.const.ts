@@ -1,6 +1,11 @@
 import { PORT } from '../config/config';
 
 export const API_ROUTES = {
+  BULL_BOARD_CLEAN: '/bull-board/api/clean',
+  BULL_BOARD_HEALTH: '/bull-board-health',
+  BULL_BOARD_INTERFACE: '/bull-board',
+  BULL_BOARD_STATS: '/bull-board-health',
+
   DASHBOARD: `/dashboard`,
   HOME: `/`,
   IOT_SIMULATOR_HEALTH: '/iot-simulator/health',
