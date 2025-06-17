@@ -413,6 +413,163 @@ export class RedisCommanderController {
       res.status(500).send('Error loading Redis Commander interface');
     }
   };
+
+  /**
+   * Delete keys by pattern
+   */
+  public deleteKeysByPattern = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const functionName = 'deleteKeysByPattern';
+
+    try {
+      const { pattern } = req.body;
+      const { database = 0 } = req.query;
+
+      if (!pattern) {
+        const response: RedisCommanderResponse = {
+          error: 'Pattern is required',
+          message: 'Missing pattern in request body',
+          success: false,
+          timestamp: new Date().toISOString(),
+        };
+
+        res.status(400).json(response);
+        return;
+      }
+
+      const deletedCount = await this.redisCommanderService.deleteKeysByPattern(
+        pattern,
+        parseInt(database as string, 10)
+      );
+
+      const response: RedisCommanderResponse = {
+        data: { deletedCount },
+        message: `Deleted ${deletedCount} keys matching pattern: ${pattern}`,
+        success: true,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: `Successfully deleted ${deletedCount} keys with pattern: ${pattern}`,
+        payload: { database, deletedCount, pattern },
+        severity: Severity.info,
+      });
+
+      res.status(200).json(response);
+    } catch (error) {
+      const response: RedisCommanderResponse = {
+        error: error.message,
+        message: 'Failed to delete keys by pattern',
+        success: false,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: 'Error deleting keys by pattern',
+        payload: { error: error.message, pattern: req.body.pattern },
+        severity: Severity.error,
+      });
+
+      res.status(500).json(response);
+    }
+  };
+
+  /**
+   * Clear database
+   */
+  public clearDatabase = async (req: Request, res: Response): Promise<void> => {
+    const functionName = 'clearDatabase';
+
+    try {
+      const { database = 0 } = req.query;
+
+      const success = await this.redisCommanderService.clearDatabase(
+        parseInt(database as string, 10)
+      );
+
+      const response: RedisCommanderResponse = {
+        data: { cleared: success },
+        message: `Database ${database} cleared successfully`,
+        success,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: `Database ${database} cleared successfully`,
+        payload: { database },
+        severity: Severity.warning,
+      });
+
+      res.status(200).json(response);
+    } catch (error) {
+      const response: RedisCommanderResponse = {
+        error: error.message,
+        message: 'Failed to clear database',
+        success: false,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: 'Error clearing database',
+        payload: { error: error.message },
+        severity: Severity.error,
+      });
+
+      res.status(500).json(response);
+    }
+  };
+
+  /**
+   * Clear all databases
+   */
+  public clearAllDatabases = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    const functionName = 'clearAllDatabases';
+
+    try {
+      const success = await this.redisCommanderService.clearAllDatabases();
+
+      const response: RedisCommanderResponse = {
+        data: { cleared: success },
+        message: 'All databases cleared successfully',
+        success,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: 'All databases cleared successfully',
+        payload: {},
+        severity: Severity.warning,
+      });
+
+      res.status(200).json(response);
+    } catch (error) {
+      const response: RedisCommanderResponse = {
+        error: error.message,
+        message: 'Failed to clear all databases',
+        success: false,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: 'Error clearing all databases',
+        payload: { error: error.message },
+        severity: Severity.error,
+      });
+
+      res.status(500).json(response);
+    }
+  };
 }
 
 // Create controller instance
@@ -420,7 +577,10 @@ const redisCommanderController = new RedisCommanderController();
 
 // Export individual functions for use in routes
 export const {
+  clearAllDatabases,
+  clearDatabase,
   deleteKey,
+  deleteKeysByPattern,
   getDatabases,
   getKeyPatterns,
   getKeys,

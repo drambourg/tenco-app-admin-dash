@@ -16,7 +16,10 @@ import {
   testIotSimulator,
 } from '../controllers/iot-simulator.controller';
 import {
+  clearAllDatabases,
+  clearDatabase,
   deleteKey,
+  deleteKeysByPattern,
   getDatabases,
   getKeyPatterns,
   getKeys,
@@ -52,6 +55,15 @@ router.get(API_ROUTES.REDIS_COMMANDER_KEYS, getKeys);
 router.get(API_ROUTES.REDIS_COMMANDER_PATTERNS, getKeyPatterns);
 router.get(API_ROUTES.REDIS_COMMANDER_KEY_VALUE, getValue);
 router.delete(API_ROUTES.REDIS_COMMANDER_KEY_DELETE, deleteKey);
+router.delete(
+  API_ROUTES.REDIS_COMMANDER_DELETE_KEY_PATTERN,
+  deleteKeysByPattern
+);
+router.delete(API_ROUTES.REDIS_COMMANDER_DELETE_DATABASE, clearDatabase);
+router.delete(
+  API_ROUTES.REDIS_COMMANDER_DELETE_ALL_DATABASES,
+  clearAllDatabases
+);
 
 // ✨ BULL BOARD ROUTES - Job queue monitoring
 router.get(API_ROUTES.BULL_BOARD_HEALTH, bullHealthCheck);

@@ -354,6 +354,24 @@ function getRedisCommanderHTML(): string {
                     <label>&nbsp;</label>
                     <button onclick="refreshStats()">🔄 Refresh</button>
                 </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button onclick="deleteByPattern()" style="background: #dc3545;">
+                        🗑️ Delete Pattern
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button onclick="clearCurrentDatabase()" style="background: #dc3545;">
+                        💥 Clear DB
+                    </button>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button onclick="clearAllDatabases()" style="background: #dc3545;">
+                        ⚠️ Clear All
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -648,6 +666,132 @@ function getRedisCommanderHTML(): string {
             }
         }
 
+        // Delete keys by pattern
+        async function deleteByPattern() {
+            const pattern = document.getElementById('patternInput').value || '*';
+            
+            if (!confirm(\`Are you sure you want to delete ALL keys matching pattern: \${pattern}?\\n\\nThis action cannot be undone!\`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + '/keys/pattern?database=' + currentDatabase, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ pattern })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(\`Successfully deleted \${result.data.deletedCount} keys\`);
+                    await loadKeys();
+                    await refreshStats();
+                    await loadKeyPatterns();
+                    // Clear selected key if it was deleted
+                    currentKey = null;
+                    document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
+                    document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('deleteBtn').style.display = 'none';
+                    document.getElementById('keyValue').innerHTML = \`
+                        <div class="empty-state">
+                            <h3>Keys deleted</h3>
+                            <p>Select a key to view its content</p>
+                        </div>
+                    \`;
+                } else {
+                    alert(\`Error deleting keys: \${result.error}\`);
+                }
+            } catch (error) {
+                alert(\`Error deleting keys: \${error.message}\`);
+            }
+        }
+
+        // Clear current database
+        async function clearCurrentDatabase() {
+            if (!confirm(\`Are you sure you want to CLEAR ALL KEYS in database \${currentDatabase}?\\n\\nThis action cannot be undone!\`)) {
+                return;
+            }
+            
+            if (!confirm(\`This will delete EVERYTHING in database \${currentDatabase}. Are you absolutely sure?\`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + '/database/clear?database=' + currentDatabase, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(\`Database \${currentDatabase} cleared successfully\`);
+                    await loadKeys();
+                    await refreshStats();
+                    await loadDatabases();
+                    await loadKeyPatterns();
+                    // Reset UI
+                    currentKey = null;
+                    document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
+                    document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('deleteBtn').style.display = 'none';
+                    document.getElementById('keyValue').innerHTML = \`
+                        <div class="empty-state">
+                            <h3>Database cleared</h3>
+                            <p>The database is now empty</p>
+                        </div>
+                    \`;
+                } else {
+                    alert(\`Error clearing database: \${result.error}\`);
+                }
+            } catch (error) {
+                alert(\`Error clearing database: \${error.message}\`);
+            }
+        }
+
+        // Clear all databases
+        async function clearAllDatabases() {
+            if (!confirm('Are you sure you want to CLEAR ALL DATABASES?\\n\\nThis will delete EVERYTHING in Redis!\\n\\nThis action cannot be undone!')) {
+                return;
+            }
+            
+            const confirmation = prompt('Type "DELETE ALL" to confirm:');
+            if (confirmation !== 'DELETE ALL') {
+                alert('Operation cancelled');
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE + '/databases/clear', {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('All databases cleared successfully');
+                    await loadKeys();
+                    await refreshStats();
+                    await loadDatabases();
+                    await loadKeyPatterns();
+                    // Reset UI
+                    currentKey = null;
+                    document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
+                    document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('deleteBtn').style.display = 'none';
+                    document.getElementById('keyValue').innerHTML = \`
+                        <div class="empty-state">
+                            <h3>All databases cleared</h3>
+                            <p>Redis is now completely empty</p>
+                        </div>
+                    \`;
+                } else {
+                    alert(\`Error clearing databases: \${result.error}\`);
+                }
+            } catch (error) {
+                alert(\`Error clearing databases: \${error.message}\`);
+            }
+        }
+
         // Utility functions
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -678,7 +822,7 @@ function getRedisCommanderHTML(): string {
         setInterval(refreshStats, 30000);
     </script>
 </body>
-</html>`;
+</html>\\`;
 }
 
 // eslint-disable-next-line import/prefer-default-export

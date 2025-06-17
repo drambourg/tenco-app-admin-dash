@@ -422,4 +422,98 @@ export class RedisCommanderService {
 
     return descriptions[pattern] || 'Custom keys';
   }
+
+  /**
+   * Delete all keys matching a pattern
+   */
+  public async deleteKeysByPattern(
+    pattern: string,
+    database = 0
+  ): Promise<number> {
+    try {
+      const client = await this.getClient();
+      await client.select(database);
+
+      let deletedCount = 0;
+      const scanStream = client.scanStream({
+        count: 100,
+        match: pattern,
+      });
+
+      const pipeline = client.pipeline();
+      let batchCount = 0;
+
+      for await (const keys of scanStream) {
+        for (const key of keys) {
+          pipeline.del(key);
+          batchCount += 1;
+
+          // Execute pipeline in batches of 100
+          if (batchCount >= 100) {
+            const results = await pipeline.exec();
+            deletedCount +=
+              results?.filter(([err, result]) => !err && result === 1).length ||
+              0;
+            batchCount = 0;
+          }
+        }
+      }
+
+      // Execute remaining commands
+      if (batchCount > 0) {
+        const results = await pipeline.exec();
+        deletedCount +=
+          results?.filter(([err, result]) => !err && result === 1).length || 0;
+      }
+
+      return deletedCount;
+    } catch (error) {
+      gcpLogger({
+        fileLink: `redis-commander.service.ts:deleteKeysByPattern`,
+        message: 'Error deleting keys by pattern',
+        payload: { database, error: error.message, pattern },
+        severity: Severity.error,
+      });
+      throw new Error(`Failed to delete keys by pattern: ${error.message}`);
+    }
+  }
+
+  /**
+   * Clear entire database
+   */
+  public async clearDatabase(database = 0): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      await client.select(database);
+      await client.flushdb();
+      return true;
+    } catch (error) {
+      gcpLogger({
+        fileLink: `redis-commander.service.ts:clearDatabase`,
+        message: 'Error clearing database',
+        payload: { database, error: error.message },
+        severity: Severity.error,
+      });
+      throw new Error(`Failed to clear database: ${error.message}`);
+    }
+  }
+
+  /**
+   * Clear all databases
+   */
+  public async clearAllDatabases(): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      await client.flushall();
+      return true;
+    } catch (error) {
+      gcpLogger({
+        fileLink: `redis-commander.service.ts:clearAllDatabases`,
+        message: 'Error clearing all databases',
+        payload: { error: error.message },
+        severity: Severity.error,
+      });
+      throw new Error(`Failed to clear all databases: ${error.message}`);
+    }
+  }
 }

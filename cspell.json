@@ -28,6 +28,7 @@
     "date-fns",
     "emqx",
     "envalid",
+    "flushall",
     "gcloud",
     "hdel",
     "hget",
