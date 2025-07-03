@@ -8,6 +8,13 @@ import {
 } from '../controllers/bull-board/bull-board.controller';
 import { serveHomePage } from '../controllers/dashboard-controller';
 import {
+  getEmqxStats,
+  healthEmqx,
+  serveEmqxInterface,
+  testPublish,
+  testReconnect,
+} from '../controllers/emqx.controller';
+import {
   appIotSimulator,
   healthIotSimulator,
   startIotSimulator,
@@ -31,6 +38,13 @@ import {
 import { API_ROUTES } from './routes.const';
 
 const router = Router();
+
+// ✨ EMQX ROUTES - Gestion de la connexion MQTT
+router.get(API_ROUTES.EMQX_INTERFACE, serveEmqxInterface);
+router.get(API_ROUTES.EMQX_HEALTH, healthEmqx);
+router.get(API_ROUTES.EMQX_STATS, getEmqxStats);
+router.post(API_ROUTES.EMQX_TEST_PUBLISH, testPublish);
+router.post(API_ROUTES.EMQX_TEST_RECONNECT, testReconnect);
 
 // ✨ HOME DASHBOARD - Page d'accueil
 router.get(API_ROUTES.HOME, serveHomePage);

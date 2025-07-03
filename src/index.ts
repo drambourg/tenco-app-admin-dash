@@ -3,6 +3,8 @@ import { Severity } from '@google-cloud/logging';
 import { LOG_MESSAGES } from './config/config.const';
 import validateEnv from './config/validateEnv';
 import BullBoardService from './services/bull-board/bull-board.service';
+import EmqxClientService from './services/emqx/emqx-client.service';
+import { getEmqxConfig } from './services/emqx/emqx-config';
 import gcpLogger from './utils/gcp/gcp-logger';
 import {
   closeRedisConnection,
@@ -36,6 +38,17 @@ const app = createApp();
 const handleShutdown = async (): Promise<void> => {
   console.log('🔄 Shutting down gracefully...');
   try {
+    // Close EMQX connection
+    try {
+      const emqxService = EmqxClientService.getInstance();
+      if (emqxService.getStatus().connected) {
+        await emqxService.disconnect();
+        console.log('✅ EMQX connection closed');
+      }
+    } catch (error) {
+      console.log('ℹ️  EMQX service was not initialized');
+    }
+
     // Close Bull Board service
     const bullBoardService = BullBoardService.getInstance();
     await bullBoardService.cleanup();
@@ -61,6 +74,7 @@ const handleShutdown = async (): Promise<void> => {
 // Handling shutdown signals
 process.on('SIGTERM', handleShutdown);
 process.on('SIGINT', handleShutdown);
+
 // Start server function
 const startServer = async (): Promise<void> => {
   const port = getServerPort();
@@ -74,6 +88,7 @@ const startServer = async (): Promise<void> => {
     console.log(`🗃️ Redis Commander: http://localhost:${port}/redis-commander`);
     console.log(`📊 Bull Board: http://localhost:${port}/bull-board`);
     console.log(`📡 IoT Simulator: http://localhost:${port}/iot-simulator`);
+    console.log(`🔌 EMQX Service: Available for MQTT operations`);
 
     gcpLogger({
       fileLink: __filename,
@@ -127,6 +142,82 @@ const startServer = async (): Promise<void> => {
     // Don't exit - let the app run without Redis if needed
   }
 
+  // Initialize EMQX connection
+  try {
+    console.log('🔄 Initializing EMQX connection...');
+    const emqxConfig = getEmqxConfig();
+
+    gcpLogger({
+      fileLink: __filename,
+      message: 'EMQX configuration loaded',
+      payload: {
+        broker: emqxConfig.broker,
+        clientId: emqxConfig.clientId,
+        hasCredentials: !!emqxConfig.username,
+        port: emqxConfig.port,
+      },
+      severity: Severity.info,
+    });
+
+    const emqxService = EmqxClientService.getInstance(emqxConfig);
+    await emqxService.connect();
+
+    const status = emqxService.getStatus();
+    if (status.connected) {
+      console.log('✅ EMQX connected successfully');
+      console.log(`🔌 Broker: ${emqxConfig.broker}:${emqxConfig.port}`);
+      console.log(`👤 Client ID: ${emqxConfig.clientId}`);
+
+      // Test de ping EMQX
+      const pingResult = await emqxService.ping();
+      console.log(`🏓 EMQX Ping: ${pingResult ? '✅ OK' : '❌ Failed'}`);
+
+      gcpLogger({
+        fileLink: __filename,
+        message: 'EMQX service initialized successfully',
+        payload: {
+          broker: emqxConfig.broker,
+          clientId: emqxConfig.clientId,
+          lastConnected: status.lastConnected,
+          pingResult,
+        },
+        severity: Severity.info,
+      });
+    } else {
+      console.log(
+        `⚠️ EMQX service initialized but not connected: ${status.error}`
+      );
+
+      gcpLogger({
+        fileLink: __filename,
+        message: 'EMQX service initialized but connection failed',
+        payload: {
+          error: status.error,
+          reconnectAttempts: status.reconnectAttempts,
+        },
+        severity: Severity.warning,
+      });
+    }
+  } catch (error) {
+    console.error(`❌ EMQX initialization failed:`, error);
+    gcpLogger({
+      fileLink: __filename,
+      message: 'EMQX initialization failed',
+      payload: {
+        config: {
+          broker: process.env.EMQX_BROKER || 'not-set',
+          port: process.env.EMQX_PORT || 'not-set',
+        },
+        error: error.message,
+        stack: error.stack,
+      },
+      severity: Severity.warning, // Warning instead of error to not crash the app
+    });
+    console.log('ℹ️  Application will continue without EMQX connectivity');
+    // Don't exit - let the app run without EMQX if needed
+  }
+
+  // Initialize Bull Board service
   try {
     console.log('🔄 Initializing Bull Board service...');
     const bullBoardService = BullBoardService.getInstance();
@@ -175,6 +266,7 @@ startServer().catch((error) => {
   });
   process.exit(1);
 });
+
 // Export for testing purposes
 // eslint-disable-next-line import/prefer-default-export
 export { app };

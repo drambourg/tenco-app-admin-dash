@@ -5,6 +5,15 @@ import { AppError, GENERIC_ERRORS } from '../utils/error';
 const validateEnv = () => {
   try {
     cleanEnv(process.env, {
+      EMQX_BROKER: str(),
+      EMQX_CLIENT_ID: str(),
+      EMQX_CONNECT_TIMEOUT: port({ default: 10000 }),
+      EMQX_KEEP_ALIVE: port({ default: 30 }),
+      EMQX_PASSWORD: str(),
+      EMQX_PORT: port({ default: 1883 }),
+      EMQX_QOS: port({ default: 1 }),
+      EMQX_TOPIC: str(),
+      EMQX_USERNAME: str(),
       GCP_LOGGER_NAME: str(),
       GCP_PROJECT_ID: str(),
       NODE_ENV: str({ default: undefined }),

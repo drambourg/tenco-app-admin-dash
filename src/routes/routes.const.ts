@@ -7,6 +7,11 @@ export const API_ROUTES = {
   BULL_BOARD_STATS: '/bull-board-health',
 
   DASHBOARD: `/dashboard`,
+  EMQX_HEALTH: '/emqx/health',
+  EMQX_INTERFACE: '/emqx',
+  EMQX_STATS: '/emqx/stats',
+  EMQX_TEST_PUBLISH: '/emqx/test/publish',
+  EMQX_TEST_RECONNECT: '/emqx/test/reconnect',
   HOME: `/`,
   IOT_SIMULATOR_HEALTH: '/iot-simulator/health',
   IOT_SIMULATOR_ROOT: '/iot-simulator/',
@@ -20,6 +25,7 @@ export const API_ROUTES = {
   REDIS_COMMANDER_DELETE_KEY_PATTERN: '/redis-commander/keys/pattern',
   REDIS_COMMANDER_INFO: '/redis-commander/info',
   REDIS_COMMANDER_KEYS: '/redis-commander/keys',
+
   REDIS_COMMANDER_KEY_DELETE: '/redis-commander/key/:key',
   REDIS_COMMANDER_KEY_VALUE: '/redis-commander/key/:key',
   REDIS_COMMANDER_PATTERNS: '/redis-commander/patterns',
