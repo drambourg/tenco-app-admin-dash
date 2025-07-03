@@ -165,7 +165,7 @@ export class EmqxIoTSimulatorController {
       const macAddress = req.body.macAddress || '00:11:22:33:44:55';
       const centerLat = req.body.centerLat || 48.8566;
       const centerLng = req.body.centerLng || 2.3522;
-      const boundingBoxKm = req.body.boundingBoxKm || 2;
+      const boundingBoxKm = req.body.boundingBoxKm || 0.2;
 
       const sensorData = await this.simulatorService.publishTestMessage(
         macAddress,

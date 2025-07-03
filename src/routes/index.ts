@@ -82,37 +82,11 @@ router.post(
   API_ROUTES.EMQX_IOT_SIMULATOR_HEALTH,
   emqxIoTSimulatorController.healthEmqxSimulatorCheck
 );
-
-/**
- * GET /emqx
- * Interface web principale EMQX
- */
-router.get('/', serveEmqxInterface);
-
-/**
- * GET /emqx/health
- * Health check du service EMQX
- */
-router.get('/health', healthEmqx);
-
-/**
- * GET /emqx/stats
- * Statistiques détaillées EMQX
- */
-router.get('/stats', getEmqxStats);
-
-/**
- * POST /emqx/test/publish
- * Test de publication MQTT
- */
-router.post('/test/publish', testPublish);
-
-/**
- * POST /emqx/test/reconnect
- * Test de reconnexion EMQX
- */
-router.post('/test/reconnect', testReconnect);
-
+router.get(API_ROUTES.EMQX_INTERFACE, serveEmqxInterface); // '/emqx'
+router.get(API_ROUTES.EMQX_HEALTH, healthEmqx); // '/emqx/health'
+router.get(API_ROUTES.EMQX_STATS, getEmqxStats); // '/emqx/stats'
+router.post(API_ROUTES.EMQX_TEST_PUBLISH, testPublish); // '/emqx/test/publish'
+router.post(API_ROUTES.EMQX_TEST_RECONNECT, testReconnect); // '/emqx/test/reconnect'
 // Redis Commander routes
 // Web interface
 router.get(API_ROUTES.REDIS_COMMANDER_UI, serveInterface);

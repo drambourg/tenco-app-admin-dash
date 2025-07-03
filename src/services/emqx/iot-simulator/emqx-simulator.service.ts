@@ -97,78 +97,110 @@ export class EmqxIoTSensorSimulatorService {
     // Vibrations: only X and Y values (2 coordinates per point)
     const vibrationData = [
       [
-        faker.number.float({ max: 100, min: 0, precision: 0.01 }), // X
-        faker.number.float({ max: 100, min: 0, precision: 0.01 }), // Y
+        faker.number.int({ max: 300000, min: 60000 }), // X
+        faker.number.float({ max: 60, min: 10, precision: 0.01 }), // Y
       ],
       [
-        faker.number.float({ max: 100, min: 0, precision: 0.01 }), // X
-        faker.number.float({ max: 100, min: 0, precision: 0.01 }), // Y
+        faker.number.int({ max: 300000, min: 60000 }), // X
+        faker.number.float({ max: 60, min: 10, precision: 0.01 }), // Y
       ],
     ];
 
     const temperatures = [
-      faker.number.float({ max: 60, min: -20, precision: 0.1 }),
-      faker.number.float({ max: 60, min: -20, precision: 0.1 }),
+      faker.number.int({ max: 200, min: 30 }),
+      faker.number.int({ max: 200, min: 30 }),
     ];
 
-    const accelerations = [
-      faker.number.float({ max: 10, min: 0, precision: 0.01 }),
-      faker.number.float({ max: 10, min: 0, precision: 0.01 }),
+    const accuracies = [
+      faker.number.float({ max: 2, min: 0, precision: 0.01 }),
+      faker.number.float({ max: 2, min: 0, precision: 0.01 }),
     ];
 
     const speeds = [
-      faker.number.float({ max: 120, min: 0, precision: 0.1 }),
-      faker.number.float({ max: 120, min: 0, precision: 0.1 }),
+      faker.number.float({ max: 6, min: 0, precision: 0.1 }),
+      faker.number.float({ max: 6, min: 0, precision: 0.1 }),
     ];
 
     return {
-      acc: accelerations,
+      acc: accuracies,
       coord: [coord1, coord2],
       mac: macAddress,
       speed: speeds,
       temp: temperatures,
-      time: timestamp,
+      time: timestamp / 1000,
       vib: vibrationData,
     };
   }
 
   /**
-   * Publishes sensor data to EMQX
+   * Publishes sensor data to EMQX or logs for debug
    */
-  private async publishSensorData(sensorData: SensorPayload): Promise<void> {
+  private async publishSensorData(
+    sensorData: SensorPayload,
+    debugMode = false
+  ): Promise<void> {
     try {
-      const topic = 'data'; // Fixed topic name
+      const topic = 'data';
       const message = JSON.stringify(sensorData);
 
-      await this.emqxService.publish(topic, message, 1);
+      if (debugMode) {
+        // Mode debug : seulement logger
+        gcpLogger({
+          fileLink: __filename,
+          message: '[DEBUG MODE] Sensor data would be published',
+          payload: {
+            data: sensorData,
+            mac: sensorData.mac,
+            messageSize: message.length,
+            sensorData,
+            sensorDataJSON: message,
+            timestamp: sensorData.time,
+            topic,
+          },
+          severity: Severity.info,
+        });
+        console.log(
+          `[DEBUG] MAC: ${sensorData.mac} - Would publish to ${topic}:`
+        );
+        console.log(JSON.stringify(sensorData, null, 2));
+      } else {
+        // Mode normal : publier sur EMQX
+        await this.emqxService.publish(topic, message, 1);
+
+        gcpLogger({
+          fileLink: __filename,
+          message: 'Sensor data published successfully',
+          payload: {
+            mac: sensorData.mac,
+            messageSize: message.length,
+            sensorDataJSON: message,
+            timestamp: sensorData.time,
+            topic,
+          },
+          severity: Severity.debug,
+        });
+      }
 
       this.status.messagesSent += 1;
-
-      gcpLogger({
-        fileLink: __filename,
-        message: 'Sensor data published successfully',
-        payload: {
-          mac: sensorData.mac,
-          messageSize: message.length,
-          timestamp: sensorData.time,
-          topic,
-        },
-        severity: Severity.debug,
-      });
     } catch (error) {
       this.status.errors += 1;
 
       gcpLogger({
         fileLink: __filename,
-        message: 'Failed to publish sensor data',
+        message: debugMode
+          ? 'Debug mode logging error'
+          : 'Failed to publish sensor data',
         payload: {
+          debugMode,
           error: error.message,
           mac: sensorData.mac,
         },
         severity: Severity.error,
       });
 
-      throw error;
+      if (!debugMode) {
+        throw error;
+      }
     }
   }
 
@@ -224,7 +256,7 @@ export class EmqxIoTSensorSimulatorService {
         forcedTimestamp
       );
 
-      await this.publishSensorData(sensorData);
+      await this.publishSensorData(sensorData, config.debugMode);
 
       // Update next send time in status
       const nextSend = new Date(sensorData.time + config.intervalMs);
@@ -236,6 +268,7 @@ export class EmqxIoTSensorSimulatorService {
         fileLink: __filename,
         message: 'Error in sensor message sending',
         payload: {
+          debugMode: config.debugMode,
           error: error.message,
           mac: macAddress,
         },
@@ -394,7 +427,7 @@ export class EmqxIoTSensorSimulatorService {
     macAddress: string,
     centerLat = 48.8566,
     centerLng = 2.3522,
-    boundingBoxKm = 2
+    boundingBoxKm = 0.2
   ): Promise<SensorPayload> {
     // Use current time for test messages
     const sensorData = this.generateSensorData(

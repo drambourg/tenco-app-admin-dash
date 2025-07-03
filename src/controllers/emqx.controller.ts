@@ -314,8 +314,8 @@ export async function serveEmqxInterface(
         .btn-danger:hover { background: #c82333; transform: translateY(-2px); }
         .btn-warning { background: #ffc107; color: #212529; }
         .btn-warning:hover { background: #e0a800; transform: translateY(-2px); }
-        .logs { background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568; border-radius: 6px; padding: 20px; height: 350px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; }
-        input, textarea, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .logs { background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568; border-radius: 6px; padding: 20px; height: 350px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; resize: none; width: 100%; box-sizing: border-box; }
+          input, textarea, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
         .route-section { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 20px 0; }
         .route-section h4 { color: #856404; margin-top: 0; }
         .route-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
@@ -369,6 +369,14 @@ export async function serveEmqxInterface(
                 Chargement des informations...
             </div>
             <input type="number" id="durationMinutes" placeholder="Durée (minutes)" value="1" min="1" max="60">
+                <input type="text" id="macAddresses" placeholder="MAC Addresses (ex: 9999,33333,12222)" value="00:11:22:33:44:55,00:11:22:33:44:56,00:11:22:33:44:57">
+
+                <div style="margin: 10px 0;">
+                <label>
+                    <input type="checkbox" id="debugMode" style="width: auto; margin-right: 8px;">
+                    Mode Debug (affichage uniquement, pas d'envoi MQTT)
+                </label>
+            </div>
             <button class="btn-success" onclick="startSimulator()">▶️ Démarrer</button>
             <button class="btn-danger" onclick="stopSimulator()">⏹️ Arrêter</button>
             <button class="btn-warning" onclick="testSingleMessage()">📨 Test Simple</button>
@@ -427,17 +435,17 @@ export async function serveEmqxInterface(
     <!-- Logs -->
     <div class="card">
         <h3>📋 Logs en Temps Réel</h3>
-        <div id="logs" class="logs"></div>
+        <textarea id="logs" class="logs" readonly></textarea>
     </div>
 
     <script>
         function addLog(message, type = 'info') {
-            const logs = document.getElementById('logs');
-            const timestamp = new Date().toLocaleTimeString();
-            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
-            logs.innerHTML += \`[\${timestamp}] \${icon} \${message}\\n\`;
-            logs.scrollTop = logs.scrollHeight;
-        }
+          const logs = document.getElementById('logs');
+          const timestamp = new Date().toLocaleTimeString();
+          const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+          logs.value += \`[\${timestamp}] \${icon} \${message}\\n\`;
+          logs.scrollTop = logs.scrollHeight;
+      }
 
         async function refreshStats() {
             try {
@@ -510,8 +518,20 @@ export async function serveEmqxInterface(
         async function startSimulator() {
             try {
                 const duration = document.getElementById('durationMinutes').value;
-                addLog(\`Démarrage du simulateur pour \${duration} minute(s)...\`, 'info');
+                 const debugMode = document.getElementById('debugMode').checked;
+                const macAddressesInput = document.getElementById('macAddresses').value;
+                  const macAddresses = macAddressesInput
+                    .split(',')
+                    .map(mac => mac.trim())
+                    .filter(mac => mac.length > 0);
                 
+                if (macAddresses.length === 0) {
+                    addLog('Veuillez saisir au moins une adresse MAC', 'error');
+                    return;
+                }
+                
+                addLog(\`Démarrage du simulateur pour \${duration} minute(s)...\`, 'info');
+                addLog(\`MAC Addresses: \${macAddresses.join(', ')}\`, 'info');
                 const response = await fetch('/emqx-iot-simulator/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -519,7 +539,9 @@ export async function serveEmqxInterface(
                         durationMinutes: parseInt(duration),
                         centerLat: 48.8566,
                         centerLng: 2.3522,
-                        boundingBoxKm: 2
+                        boundingBoxKm: 0.2,
+                        macAddresses: macAddresses,
+                        debugMode: debugMode
                     })
                 });
 
@@ -565,10 +587,10 @@ export async function serveEmqxInterface(
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        macAddress: '00:11:22:33:44:55',
+                        macAddresses: ['00:11:22:33:44:55'],
                         centerLat: 48.8566,
                         centerLng: 2.3522,
-                        boundingBoxKm: 2
+                        boundingBoxKm: 0.2
                     })
                 });
 
@@ -634,20 +656,6 @@ export async function serveEmqxInterface(
             }
         }
 
-        async function getMacAddresses() {
-            try {
-                const response = await fetch('/emqx-iot-simulator/mac-addresses');
-                const result = await response.json();
-                
-                if (result.success) {
-                    addLog(\`MAC addresses disponibles (\${result.total}): \${result.macAddresses.slice(0, 3).join(', ')}...\`, 'info');
-                } else {
-                    addLog(\`Erreur MAC addresses: \${result.error}\`, 'error');
-                }
-            } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
-            }
-        }
 
         async function getTimelineInfo() {
             try {
@@ -687,9 +695,9 @@ export async function serveEmqxInterface(
         }
 
         function clearLogs() {
-            document.getElementById('logs').innerHTML = '';
-            addLog('Logs vidés', 'info');
-        }
+          document.getElementById('logs').value = '';
+          addLog('Logs vidés', 'info');
+      }
 
         // Initialisation
         document.addEventListener('DOMContentLoaded', () => {

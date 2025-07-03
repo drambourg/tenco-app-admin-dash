@@ -32,7 +32,7 @@ export class EmqxClientService {
    */
   public static getInstance(config?: EmqxConfig): EmqxClientService {
     if (!EmqxClientService.instance) {
-      const mergedConfig = { ...getEmqxConfig(), ...config }; 
+      const mergedConfig = { ...getEmqxConfig(), ...config };
       EmqxClientService.instance = new EmqxClientService(mergedConfig);
     }
     return EmqxClientService.instance;

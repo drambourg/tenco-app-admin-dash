@@ -5,6 +5,7 @@ export interface SimulationConfig {
   boundingBoxKm: number;
   intervalMs: number;
   durationMinutes: number;
+  debugMode?: boolean;
 }
 
 export interface SimulationStatus {
