@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 
 import { SERVICE_SENSOR_DATA_DISPATCHER_URL } from '../config/config';
 import { API_RESPONSES } from '../config/config.const';
-import IoTSimulator from '../services/iot-simulator-processing.service';
+import IoTSimulator from '../services/simulator/iot-simulator-processing.service';
 import { AppError, GENERIC_ERRORS, HTTP_CODES } from '../utils/error';
 import parseRequestBody from '../utils/parse-body';
 

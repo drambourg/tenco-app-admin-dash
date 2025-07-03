@@ -7,6 +7,7 @@ import {
   healthCheck as bullHealthCheck,
 } from '../controllers/bull-board/bull-board.controller';
 import { serveHomePage } from '../controllers/dashboard-controller';
+import EmqxIoTSimulatorController from '../controllers/emqx-iot-simulator.controller';
 import {
   getEmqxStats,
   healthEmqx,
@@ -38,13 +39,7 @@ import {
 import { API_ROUTES } from './routes.const';
 
 const router = Router();
-
-// ✨ EMQX ROUTES - Gestion de la connexion MQTT
-router.get(API_ROUTES.EMQX_INTERFACE, serveEmqxInterface);
-router.get(API_ROUTES.EMQX_HEALTH, healthEmqx);
-router.get(API_ROUTES.EMQX_STATS, getEmqxStats);
-router.post(API_ROUTES.EMQX_TEST_PUBLISH, testPublish);
-router.post(API_ROUTES.EMQX_TEST_RECONNECT, testReconnect);
+const emqxIoTSimulatorController = new EmqxIoTSimulatorController();
 
 // ✨ HOME DASHBOARD - Page d'accueil
 router.get(API_ROUTES.HOME, serveHomePage);
@@ -56,6 +51,67 @@ router.post(API_ROUTES.IOT_SIMULATOR_START_SIMULATE, startIotSimulator);
 router.get(API_ROUTES.IOT_SIMULATOR_ROOT, appIotSimulator);
 router.get(API_ROUTES.IOT_SIMULATOR_STATUS_SIMULATE, statusIotSimulator);
 router.get(API_ROUTES.IOT_SIMULATOR_HEALTH, healthIotSimulator);
+
+// ✨ EMQX Iot Simulator
+router.get(API_ROUTES.EMQX_IOT_SIMULATOR_ROOT, serveEmqxInterface);
+router.post(
+  API_ROUTES.EMQX_IOT_SIMULATOR_START_SIMULATE,
+  emqxIoTSimulatorController.startEmqxSimulatorSimulation
+);
+router.post(
+  API_ROUTES.EMQX_IOT_SIMULATOR_STOP_SIMULATE,
+  emqxIoTSimulatorController.stopEmqxSimulatorSimulation
+);
+router.get(
+  API_ROUTES.EMQX_IOT_SIMULATOR_STATUS_SIMULATE,
+  emqxIoTSimulatorController.getEmqxSimulatorStatus
+);
+router.post(
+  API_ROUTES.EMQX_IOT_SIMULATOR_TEST_SIMULATE,
+  emqxIoTSimulatorController.publishEmqxSimulatorTestMessage
+);
+router.get(
+  API_ROUTES.EMQX_IOT_SIMULATOR_TIMELINE_INFO,
+  emqxIoTSimulatorController.getEmqxSimulatorTimelineInfo
+);
+router.post(
+  API_ROUTES.EMQX_IOT_SIMULATOR_RESET_TIMELINE,
+  emqxIoTSimulatorController.resetEmqxSimulatorTimeline
+);
+router.post(
+  API_ROUTES.EMQX_IOT_SIMULATOR_HEALTH,
+  emqxIoTSimulatorController.healthEmqxSimulatorCheck
+);
+
+/**
+ * GET /emqx
+ * Interface web principale EMQX
+ */
+router.get('/', serveEmqxInterface);
+
+/**
+ * GET /emqx/health
+ * Health check du service EMQX
+ */
+router.get('/health', healthEmqx);
+
+/**
+ * GET /emqx/stats
+ * Statistiques détaillées EMQX
+ */
+router.get('/stats', getEmqxStats);
+
+/**
+ * POST /emqx/test/publish
+ * Test de publication MQTT
+ */
+router.post('/test/publish', testPublish);
+
+/**
+ * POST /emqx/test/reconnect
+ * Test de reconnexion EMQX
+ */
+router.post('/test/reconnect', testReconnect);
 
 // Redis Commander routes
 // Web interface

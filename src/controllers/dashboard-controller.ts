@@ -317,6 +317,29 @@ export class DashboardController {
                     Lancer le simulateur →
                 </button>
             </a>
+
+            <!-- EMQX IoT Simulator Card -->
+            <a href="/emqx-iot-simulator" class="card">
+                <div class="card-icon">🔌</div>
+                <h2 class="card-title">
+                    <span class="status-indicator status-online"></span>
+                    EMQX IoT Simulator
+                </h2>
+                <p class="card-description">
+                    Simulateur IoT spécialisé pour EMQX MQTT. 
+                    Génère des données de capteurs synchronisées avec timeline continue.
+                </p>
+                <ul class="card-features">
+                    <li>Publication MQTT vers EMQX</li>
+                    <li>Timeline synchronisée</li>
+                    <li>Données X,Y vibrations</li>
+                    <li>Géolocalisation aléatoire</li>
+                    <li>Cloud Scheduler compatible</li>
+                </ul>
+                <button class="card-button">
+                    Accéder au simulateur EMQX →
+                </button>
+            </a>
         </div>
     </div>
 
@@ -325,6 +348,7 @@ export class DashboardController {
             <p>
                 Tenco Admin Dashboard v1.0 | 
                 <a href="/iot-simulator/health">IoT Status</a> | 
+                <a href="/emqx-iot-simulator/health">EMQX IoT Status</a> | 
                 <a href="/redis-commander/health">Redis Health</a> |
                 <a href="/bull-board-health">Jobs Health</a>
             </p>
@@ -332,7 +356,7 @@ export class DashboardController {
     </div>
 
     <script>
-        // Enhanced status check including Bull Board
+        // Enhanced status check including Bull Board and EMQX IoT Simulator
         async function checkServices() {
             // Check Redis Commander
             try {
@@ -379,6 +403,25 @@ export class DashboardController {
             } catch (error) {
                 const iotStatus = document.querySelector('.card[href="/iot-simulator"] .status-indicator');
                 iotStatus.className = 'status-indicator status-offline';
+            }
+
+            // Check EMQX IoT Simulator
+            try {
+                const emqxIotResponse = await fetch('/emqx-iot-simulator/health');
+                const emqxIotStatus = document.querySelector('.card[href="/emqx-iot-simulator"] .status-indicator');
+                if (emqxIotResponse.ok) {
+                    const data = await emqxIotResponse.json();
+                    if (data.success) {
+                        emqxIotStatus.className = 'status-indicator status-online';
+                    } else {
+                        emqxIotStatus.className = 'status-indicator status-warning';
+                    }
+                } else {
+                    emqxIotStatus.className = 'status-indicator status-offline';
+                }
+            } catch (error) {
+                const emqxIotStatus = document.querySelector('.card[href="/emqx-iot-simulator"] .status-indicator');
+                emqxIotStatus.className = 'status-indicator status-offline';
             }
         }
 

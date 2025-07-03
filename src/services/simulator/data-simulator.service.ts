@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 
-import { SensorData } from '../interfaces/data.interface';
+import { SensorData } from '../../interfaces/data.interface';
 import PubSubService from './pubsub-topic.service';
 
 export class DataService {

@@ -6,11 +6,11 @@ import {
   Position,
   SensorConfig,
   SimulationConfig,
-} from '../interfaces/data.interface';
-import gcpLogger from '../utils/gcp/gcp-logger';
+} from '../../interfaces/data.interface';
+import gcpLogger from '../../utils/gcp/gcp-logger';
+import DataGenerator from '../utils/data-generator.utils';
+import MovementSimulator from '../utils/movement-simulator.utils';
 import DataService from './data-simulator.service';
-import DataGenerator from './utils/data-generator.utils';
-import MovementSimulator from './utils/movement-simulator.utils';
 
 export class IoTSimulator {
   private sensors: SensorConfig[] = [];

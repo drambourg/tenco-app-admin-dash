@@ -14,13 +14,20 @@
     "**.*hbs",
     ".github/**/*.*"
   ],
-  "ignoreRegExpList": ["HexDigits", "HexValues", "Urls"],
-  "import": ["./node_modules/cspell-dict-fr-fr/cspell-ext.json"],
+  "ignoreRegExpList": [
+    "HexDigits",
+    "HexValues",
+    "Urls"
+  ],
+  "import": [
+    "./node_modules/cspell-dict-fr-fr/cspell-ext.json"
+  ],
   "language": "en,fr",
   "version": "0.2",
   "words": [
     "acqtime",
     "BACKOFF",
+    "bbox",
     "camelcase",
     "cloudrun",
     "Datapoint",

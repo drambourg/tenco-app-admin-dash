@@ -3,8 +3,8 @@ import { Severity } from '@google-cloud/logging';
 import { LOG_MESSAGES } from './config/config.const';
 import validateEnv from './config/validateEnv';
 import BullBoardService from './services/bull-board/bull-board.service';
-import EmqxClientService from './services/emqx/emqx-client.service';
-import { getEmqxConfig } from './services/emqx/emqx-config';
+import EmqxClientService from './services/emqx/client/emqx-client.service';
+import { getEmqxConfig } from './services/emqx/client/emqx-config';
 import gcpLogger from './utils/gcp/gcp-logger';
 import {
   closeRedisConnection,

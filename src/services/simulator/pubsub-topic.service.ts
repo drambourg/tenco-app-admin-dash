@@ -1,6 +1,6 @@
 import { PubSub } from '@google-cloud/pubsub';
 
-import { SensorData } from '../interfaces/data.interface';
+import { SensorData } from '../../interfaces/data.interface';
 
 export class PubSubService {
   private static pubSubClient: PubSub | null = null;

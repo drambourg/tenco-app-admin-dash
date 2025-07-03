@@ -1,3 +1,4 @@
+/* eslint-disable sort-keys-fix/sort-keys-fix */
 import { PORT } from '../config/config';
 
 export const API_ROUTES = {
@@ -7,12 +8,24 @@ export const API_ROUTES = {
   BULL_BOARD_STATS: '/bull-board-health',
 
   DASHBOARD: `/dashboard`,
+
   EMQX_HEALTH: '/emqx/health',
   EMQX_INTERFACE: '/emqx',
   EMQX_STATS: '/emqx/stats',
   EMQX_TEST_PUBLISH: '/emqx/test/publish',
   EMQX_TEST_RECONNECT: '/emqx/test/reconnect',
+
+  EMQX_IOT_SIMULATOR_HEALTH: '/emqx-iot-simulator/health',
+  EMQX_IOT_SIMULATOR_MAC_ADDRESSES: '/emqx-iot-simulator/mac-addresses',
+  EMQX_IOT_SIMULATOR_RESET_TIMELINE: '/emqx-iot-simulator/reset-timeline',
+  EMQX_IOT_SIMULATOR_ROOT: '/emqx-iot-simulator/',
+  EMQX_IOT_SIMULATOR_START_SIMULATE: '/emqx-iot-simulator/start',
+  EMQX_IOT_SIMULATOR_STATUS_SIMULATE: '/emqx-iot-simulator/status',
+  EMQX_IOT_SIMULATOR_STOP_SIMULATE: '/emqx-iot-simulator/stop',
+  EMQX_IOT_SIMULATOR_TEST_SIMULATE: '/emqx-iot-simulator/test',
+  EMQX_IOT_SIMULATOR_TIMELINE_INFO: '/emqx-iot-simulator/timeline-info',
   HOME: `/`,
+
   IOT_SIMULATOR_HEALTH: '/iot-simulator/health',
   IOT_SIMULATOR_ROOT: '/iot-simulator/',
   IOT_SIMULATOR_START_SIMULATE: '/iot-simulator/start',

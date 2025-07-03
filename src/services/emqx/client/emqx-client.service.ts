@@ -1,7 +1,8 @@
 import { Severity } from '@google-cloud/logging';
 import mqtt, { IClientOptions, MqttClient } from 'mqtt';
 
-import gcpLogger from '../../utils/gcp/gcp-logger';
+import gcpLogger from '../../../utils/gcp/gcp-logger';
+import { getEmqxConfig } from './emqx-config';
 import { EmqxConfig, EmqxConnectionStatus } from './emqx.interface';
 
 export class EmqxClientService {
@@ -31,16 +32,11 @@ export class EmqxClientService {
    */
   public static getInstance(config?: EmqxConfig): EmqxClientService {
     if (!EmqxClientService.instance) {
-      if (!config) {
-        throw new Error(
-          'Configuration EMQX requise pour la première initialisation'
-        );
-      }
-      EmqxClientService.instance = new EmqxClientService(config);
+      const mergedConfig = { ...getEmqxConfig(), ...config }; 
+      EmqxClientService.instance = new EmqxClientService(mergedConfig);
     }
     return EmqxClientService.instance;
   }
-
   /**
    * Crée les options de connexion MQTT
    */
