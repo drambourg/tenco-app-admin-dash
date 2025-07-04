@@ -79,7 +79,6 @@ process.on('SIGINT', handleShutdown);
 const startServer = async (): Promise<void> => {
   const port = getServerPort();
 
-  // ✅ IMPORTANT: Listen on 0.0.0.0 for Cloud Run
   const server = app.listen(port, '0.0.0.0', () => {
     console.log(`🚀 Tenco Admin App started successfully`);
     console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);

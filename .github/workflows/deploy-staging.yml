@@ -36,6 +36,7 @@ env:
   EMQX_PASSWORD: ${{ secrets.EMQX_PASSWORD_STAGING }}
   EMQX_CLIENT_ID: ${{ secrets.EMQX_CLIENT_ID_STAGING }}
   EMQX_QOS: ${{ vars.EMQX_QOS_STAGING || '1' }}
+  EMQX_TOPIC: ${{ vars.EMQX_TOPIC_STAGING || 'data' }}
 
 jobs:
   deploy-cloud-run:
