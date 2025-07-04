@@ -87,11 +87,20 @@ export class EmqxIoTSensorSimulatorService {
       centerLng,
       boundingBoxKm
     );
-    const coord2 = this.generateRandomCoordinates(
-      centerLat,
-      centerLng,
-      boundingBoxKm
-    );
+
+    // Generate second coordinate between 0.5 and 1.5 meters from coord1
+    const distance = faker.number.float({ max: 1.5, min: 0.5 });
+    const bearing = faker.number.float({ max: 360, min: 0 });
+
+    // Create a point from coord1 and calculate coord2 at the specified distance and bearing
+    const point1 = turf.point([coord1[1], coord1[0]]);
+    const point2 = turf.destination(point1, distance / 1000, bearing, {
+      units: 'kilometers',
+    });
+    const coord2: [number, number] = [
+      point2.geometry.coordinates[1],
+      point2.geometry.coordinates[0],
+    ];
 
     // Generate realistic sensor data (2 points each)
     // Vibrations: only X and Y values (2 coordinates per point)
