@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable no-param-reassign */
 import { Severity } from '@google-cloud/logging';
 import Redis from 'ioredis';
 
@@ -6,112 +8,162 @@ import REDIS_CLIENTS from './redis-client.const';
 import { RedisClientType } from './redis-client.type';
 import { getRedisConfig } from './redis-config';
 
+// Variable globale pour éviter les connexions multiples
+let isConnecting = false;
+
 const createRedisClient = async (type: RedisClientType): Promise<Redis> => {
   const clientInfo = REDIS_CLIENTS[type];
 
-  // Return existing client if already connected
-  if (clientInfo.client && clientInfo.connected) {
+  // Return existing client if healthy
+  if (
+    clientInfo.client &&
+    clientInfo.connected &&
+    clientInfo.client.status === 'ready'
+  ) {
+    console.log(`✅ Reusing existing Redis ${type} client`);
     return clientInfo.client;
   }
 
+  // Éviter les connexions multiples simultanées
+  if (isConnecting && type === 'main') {
+    throw new Error('Redis connection already in progress');
+  }
+
+  if (type === 'main') {
+    isConnecting = true;
+  }
+
   try {
+    console.log(`🔄 Creating new Redis ${type} client...`);
+
+    // Nettoyer l'ancien client s'il existe
+    if (clientInfo.client) {
+      try {
+        await clientInfo.client.disconnect();
+      } catch (e) {
+        console.log(`🧹 Cleaned up old ${type} client`);
+      }
+      clientInfo.client = null;
+      clientInfo.connected = false;
+    }
+
     const clientOptions = getRedisConfig();
-    const client = new Redis({
-      ...clientOptions,
-      lazyConnect: true,
+
+    // Créer le client avec une approche step-by-step
+    const client = new Redis(clientOptions);
+
+    // Variables pour tracking
+    let isReady = false;
+    let hasError = false;
+
+    // Setup event handlers AVANT toute opération
+    client.on('connect', () => {
+      console.log(`🔌 Redis ${type} connected`);
     });
 
-    // Common event handlers
-    const setupEventHandlers = (redis: Redis, clientType: RedisClientType) => {
-      redis.on('error', (err) => {
-        clientInfo.connected = false;
-        gcpLogger({
-          fileLink: __filename,
-          message: `Redis ${clientType.toUpperCase()} client error: ${
-            err.message
-          }`,
-          payload: { error: err.stack || err.message, type: clientType },
-          severity: Severity.error,
-        });
+    client.on('ready', () => {
+      console.log(`✅ Redis ${type} ready`);
+      clientInfo.connected = true;
+      isReady = true;
+    });
+
+    client.on('error', (err) => {
+      console.error(`❌ Redis ${type} error: ${err.message}`);
+      clientInfo.connected = false;
+      hasError = true;
+
+      gcpLogger({
+        fileLink: __filename,
+        message: `Redis ${type} error: ${err.message}`,
+        payload: { error: err.message, stack: err.stack, type },
+        severity: Severity.error,
       });
+    });
 
-      redis.on('connect', () => {
-        gcpLogger({
-          message: `Redis ${clientType.toUpperCase()} client connected`,
-          payload: { type: clientType },
-          severity: Severity.info,
-        });
-      });
+    client.on('close', () => {
+      console.log(`🔐 Redis ${type} connection closed`);
+      clientInfo.connected = false;
+    });
 
-      redis.on('ready', () => {
-        clientInfo.connected = true;
-        gcpLogger({
-          message: `Redis ${clientType.toUpperCase()} client ready`,
-          payload: { description: clientInfo.description, type: clientType },
-          severity: Severity.info,
-        });
-      });
+    client.on('end', () => {
+      console.log(`🔚 Redis ${type} connection ended`);
+      clientInfo.connected = false;
+    });
 
-      redis.on('reconnecting', () => {
-        clientInfo.connected = false;
-        gcpLogger({
-          message: `Redis ${clientType.toUpperCase()} client reconnecting`,
-          payload: { type: clientType },
-          severity: Severity.warning,
-        });
-      });
+    client.on('reconnecting', (delay) => {
+      console.log(`🔄 Redis ${type} reconnecting in ${delay}ms`);
+      clientInfo.connected = false;
+    });
 
-      redis.on('close', () => {
-        clientInfo.connected = false;
-        gcpLogger({
-          message: `Redis ${clientType.toUpperCase()} connection closed`,
-          payload: { type: clientType },
-          severity: Severity.warning,
-        });
-      });
-    };
-
-    // Setup event handlers
-    setupEventHandlers(client, type);
-
-    await client.connect();
+    // Attendre la connexion avec timeout
+    console.log(`⏳ Waiting for Redis ${type} to be ready...`);
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(
-          new Error(
-            `Redis ${type} client ready timeout exceeded. ` +
-              `Current status: ${client.status}. ` +
-              `Check if Redis server is running.`
-          )
-        );
-      }, 10000);
+        reject(new Error(`Redis ${type} ready timeout after 30s`));
+      }, 30000);
 
-      if (client.status === 'ready') {
+      const cleanup = () => {
         clearTimeout(timeout);
-        resolve();
-      } else {
-        client.once('ready', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
+      };
 
-        client.once('error', (err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
+      // Si déjà prêt
+      if (client.status === 'ready') {
+        cleanup();
+        resolve();
+        return;
       }
+
+      // Attendre ready
+      client.once('ready', () => {
+        cleanup();
+        resolve();
+      });
+
+      // Ou erreur
+      client.once('error', (err) => {
+        cleanup();
+        reject(err);
+      });
+
+      // Ou close
+      client.once('close', () => {
+        cleanup();
+        reject(
+          new Error(`Redis ${type} connection closed during initialization`)
+        );
+      });
     });
 
-    // Store the client
+    // Test de fonctionnement
+    console.log(`🏓 Testing Redis ${type} with ping...`);
+    const pong = await client.ping();
+    if (pong !== 'PONG') {
+      throw new Error(`Redis ${type} ping failed: ${pong}`);
+    }
+
+    // Test d'écriture/lecture simple
+    const testKey = `test_${type}_${Date.now()}`;
+    await client.set(testKey, 'test_value', 'EX', 10);
+    const testValue = await client.get(testKey);
+    if (testValue !== 'test_value') {
+      throw new Error(`Redis ${type} read/write test failed`);
+    }
+    await client.del(testKey);
+
+    // Tout est OK
     clientInfo.client = client;
     clientInfo.connected = true;
 
+    console.log(`✅ Redis ${type} client successfully initialized`);
+    console.log(`📊 Redis ${type} status: ${client.status}`);
+
     gcpLogger({
-      isDebugLog: true,
-      message: `✅ Redis ${type.toUpperCase()} client initialized successfully`,
+      message: `Redis ${type} client initialized successfully`,
       payload: {
-        description: clientInfo.description,
+        db: clientOptions.db,
+        host: clientOptions.host,
+        port: clientOptions.port,
         status: client.status,
         type,
       },
@@ -120,84 +172,76 @@ const createRedisClient = async (type: RedisClientType): Promise<Redis> => {
 
     return client;
   } catch (error) {
+    console.error(`❌ Failed to create Redis ${type} client:`, error.message);
+
     clientInfo.connected = false;
+    clientInfo.client = null;
+
     gcpLogger({
       fileLink: __filename,
-      message: `Failed to initialize Redis ${type.toUpperCase()} client: ${
-        error.message
-      }`,
-      payload: { error: error.stack || error.message, type },
+      message: `Failed to initialize Redis ${type} client: ${error.message}`,
+      payload: {
+        error: error.message,
+        redisHost: process.env.REDIS_HOST,
+        redisPort: process.env.REDIS_PORT,
+        stack: error.stack,
+        type,
+      },
       severity: Severity.error,
     });
 
-    if (type === 'main') {
-      setTimeout(() => {
-        createRedisClient(type).catch((err) => {
-          console.error(`Background Redis ${type} reconnection failed:`, err);
-        });
-      }, 5000);
-    }
-
     throw error;
+  } finally {
+    if (type === 'main') {
+      isConnecting = false;
+    }
   }
 };
 
-/**
- *  Main Redis client for cache operations
- */
-export const getRedisClient = async (): Promise<Redis> =>
-  createRedisClient('main');
+// Fonctions exportées avec retry automatique
+export const getRedisClient = async (): Promise<Redis> => {
+  try {
+    return await createRedisClient('main');
+  } catch (error) {
+    console.log(`🔄 Redis main client failed, retrying in 5s...`);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5000);
+    });
+    return createRedisClient('main');
+  }
+};
 
-/**
- * Dedicated Redis subscriber for SSE pub/sub
- */
 export const getRedisSubscriber = async (): Promise<Redis> =>
   createRedisClient('subscriber');
-
-/**
- *  Dedicated Redis publisher for publishing messages
- */
 export const getRedisPublisher = async (): Promise<Redis> =>
   createRedisClient('publisher');
 
 export const closeRedisConnection = async (): Promise<void> => {
+  console.log('🔄 Closing all Redis connections...');
+
   const closePromises = Object.entries(REDIS_CLIENTS).map(
     async ([type, clientInfo]) => {
       if (clientInfo.client) {
         try {
+          console.log(`🔐 Closing Redis ${type} connection...`);
           await clientInfo.client.quit();
-          // eslint-disable-next-line no-param-reassign
           clientInfo.connected = false;
-          // eslint-disable-next-line no-param-reassign
           clientInfo.client = null;
-          gcpLogger({
-            message: `Redis ${type.toUpperCase()} connection closed`,
-            payload: { type },
-            severity: Severity.info,
-          });
+          console.log(`✅ Redis ${type} connection closed`);
         } catch (error) {
-          gcpLogger({
-            message: `Error closing Redis ${type.toUpperCase()} connection: ${
-              error.message
-            }`,
-            payload: { error: error.message, type },
-            severity: Severity.error,
-          });
+          console.error(`❌ Error closing Redis ${type}:`, error.message);
         }
       }
     }
   );
 
   await Promise.allSettled(closePromises);
-
-  gcpLogger({
-    message: '✅ All Redis connections closed',
-    severity: Severity.info,
-  });
+  console.log('✅ All Redis connections closed');
 };
 
-export const getRedisConnectionStatus = () =>
-  Object.fromEntries(
+// Status et debugging
+export const getRedisConnectionStatus = () => {
+  const status = Object.fromEntries(
     Object.entries(REDIS_CLIENTS).map(([type, clientInfo]) => [
       type,
       {
@@ -208,11 +252,12 @@ export const getRedisConnectionStatus = () =>
     ])
   );
 
-export const getRedisClientByType = async (
-  type: RedisClientType
-): Promise<Redis> => createRedisClient(type);
+  console.log('📊 Redis connections status:', status);
+  return status;
+};
 
 export default {
   closeRedisConnection,
   getRedisClient,
+  getRedisConnectionStatus,
 };

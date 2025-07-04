@@ -87,76 +87,95 @@ const startServer = async (): Promise<void> => {
     console.log(`🗃️ Redis Commander: http://localhost:${port}/redis-commander`);
     console.log(`📊 Bull Board: http://localhost:${port}/bull-board`);
     console.log(`📡 IoT Simulator: http://localhost:${port}/iot-simulator`);
-    console.log(`🔌 EMQX Service: Available for MQTT operations`);
-
-    gcpLogger({
-      fileLink: __filename,
-      message: 'Application started successfully',
-      payload: {
-        environment: process.env.NODE_ENV,
-        pid: process.pid,
-        port,
-      },
-      severity: Severity.info,
-    });
   });
 
   // Set server timeout for Cloud Run
-  server.timeout = 0; // Disable timeout
+  server.timeout = 0;
   server.keepAliveTimeout = 5000;
   server.headersTimeout = 10000;
 
-  // Initialize Redis connection
+  // ÉTAPE 1: Redis en premier et SEUL
+  let redisInitialized = false;
   try {
-    console.log('🔄 Initializing Redis connection...');
+    console.log('🎯 === REDIS INITIALIZATION ===');
+    console.log(
+      `🔧 Redis configuration: ${process.env.REDIS_HOST || 'localhost'}:${
+        process.env.REDIS_PORT || '6379'
+      }`
+    );
+
     const redis = await getRedisClient();
 
-    redis.on('error', (err) => {
-      console.error(`❌ Redis error:`, err);
-      gcpLogger({
-        fileLink: __filename,
-        message: 'Redis connection error',
-        payload: { error: err.message },
-        severity: Severity.error,
-      });
-    });
+    // Tests approfondis
+    console.log('🏓 Testing Redis operations...');
+    await redis.ping();
 
-    redis.on('connect', () => {
-      console.log('✅ Redis connected successfully');
-    });
+    const info = await redis.info('server');
+    const version = info.match(/redis_version:([^\r\n]+)/)?.[1] || 'unknown';
+    console.log(`📊 Redis version: ${version}`);
 
-    redis.on('ready', () => {
-      console.log('✅ Redis ready for operations');
-    });
+    const memory = await redis.info('memory');
+    const usedMemory =
+      memory.match(/used_memory_human:([^\r\n]+)/)?.[1] || 'unknown';
+    console.log(`💾 Redis memory: ${usedMemory}`);
 
-    console.log('✅ Redis client initialized');
+    redisInitialized = true;
+    console.log('✅ === REDIS READY ===');
   } catch (error) {
-    console.error(`❌ Redis initialization failed:`, error);
+    console.error(`❌ === REDIS FAILED ===`);
+    console.error(`❌ Redis error: ${error.message}`);
+    console.error(
+      `❌ Config: ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`
+    );
+    console.error(`❌ Make sure Redis server is running and accessible`);
+
+    // Log l'erreur mais continuer
     gcpLogger({
       fileLink: __filename,
-      message: 'Redis initialization failed',
-      payload: { error: error.message },
-      severity: Severity.warning, // Warning instead of error to not crash the app
+      message:
+        'Redis initialization failed - app will run without Redis features',
+      payload: {
+        error: error.message,
+        redisHost: process.env.REDIS_HOST,
+        redisPort: process.env.REDIS_PORT,
+        stack: error.stack,
+      },
+      severity: Severity.warning,
     });
-    // Don't exit - let the app run without Redis if needed
   }
 
-  // Initialize EMQX connection
-  try {
-    console.log('🔄 Initializing EMQX connection...');
-    const emqxConfig = getEmqxConfig();
+  // ÉTAPE 2: Bull Board seulement si Redis OK
+  if (redisInitialized) {
+    try {
+      console.log('🎯 === BULL BOARD INITIALIZATION ===');
+      const bullBoardService = BullBoardService.getInstance();
+      await bullBoardService.initialize();
 
-    gcpLogger({
-      fileLink: __filename,
-      message: 'EMQX configuration loaded',
-      payload: {
-        broker: emqxConfig.broker,
-        clientId: emqxConfig.clientId,
-        hasCredentials: !!emqxConfig.username,
-        port: emqxConfig.port,
-      },
-      severity: Severity.info,
-    });
+      const health = await bullBoardService.getHealth();
+      if (health.healthy) {
+        console.log('✅ Bull Board service initialized successfully');
+        console.log(`📊 Queue monitored: ${health.queueName}`);
+        console.log('✅ === BULL BOARD READY ===');
+      } else {
+        console.log(`⚠️ Bull Board unhealthy: ${health.error}`);
+      }
+    } catch (error) {
+      console.error(`❌ Bull Board initialization failed:`, error.message);
+      gcpLogger({
+        fileLink: __filename,
+        message: 'Bull Board initialization failed',
+        payload: { error: error.message },
+        severity: Severity.warning,
+      });
+    }
+  } else {
+    console.log('⏭️ Skipping Bull Board (Redis not available)');
+  }
+
+  // ÉTAPE 3: EMQX en dernier
+  try {
+    console.log('🎯 === EMQX INITIALIZATION ===');
+    const emqxConfig = getEmqxConfig();
 
     const emqxService = EmqxClientService.getInstance(emqxConfig);
     await emqxService.connect();
@@ -167,81 +186,27 @@ const startServer = async (): Promise<void> => {
       console.log(`🔌 Broker: ${emqxConfig.broker}:${emqxConfig.port}`);
       console.log(`👤 Client ID: ${emqxConfig.clientId}`);
 
-      // Test de ping EMQX
       const pingResult = await emqxService.ping();
       console.log(`🏓 EMQX Ping: ${pingResult ? '✅ OK' : '❌ Failed'}`);
-
-      gcpLogger({
-        fileLink: __filename,
-        message: 'EMQX service initialized successfully',
-        payload: {
-          broker: emqxConfig.broker,
-          clientId: emqxConfig.clientId,
-          lastConnected: status.lastConnected,
-          pingResult,
-        },
-        severity: Severity.info,
-      });
+      console.log('✅ === EMQX READY ===');
     } else {
-      console.log(
-        `⚠️ EMQX service initialized but not connected: ${status.error}`
-      );
-
-      gcpLogger({
-        fileLink: __filename,
-        message: 'EMQX service initialized but connection failed',
-        payload: {
-          error: status.error,
-          reconnectAttempts: status.reconnectAttempts,
-        },
-        severity: Severity.warning,
-      });
+      console.log(`⚠️ EMQX not connected: ${status.error}`);
     }
   } catch (error) {
-    console.error(`❌ EMQX initialization failed:`, error);
-    gcpLogger({
-      fileLink: __filename,
-      message: 'EMQX initialization failed',
-      payload: {
-        config: {
-          broker: process.env.EMQX_BROKER || 'not-set',
-          port: process.env.EMQX_PORT || 'not-set',
-        },
-        error: error.message,
-        stack: error.stack,
-      },
-      severity: Severity.warning, // Warning instead of error to not crash the app
-    });
-    console.log('ℹ️  Application will continue without EMQX connectivity');
-    // Don't exit - let the app run without EMQX if needed
+    console.error(`❌ EMQX initialization failed:`, error.message);
+    console.log('ℹ️ Application will continue without EMQX connectivity');
   }
 
-  // Initialize Bull Board service
-  try {
-    console.log('🔄 Initializing Bull Board service...');
-    const bullBoardService = BullBoardService.getInstance();
-    await bullBoardService.initialize();
-
-    // Test Bull Board health
-    const health = await bullBoardService.getHealth();
-    if (health.healthy) {
-      console.log('✅ Bull Board service initialized successfully');
-      console.log(`📊 Queue monitored: ${health.queueName}`);
-    } else {
-      console.log(
-        `⚠️ Bull Board service initialized but unhealthy: ${health.error}`
-      );
-    }
-  } catch (error) {
-    console.error(`❌ Bull Board initialization failed:`, error);
-    gcpLogger({
-      fileLink: __filename,
-      message: 'Bull Board initialization failed',
-      payload: { error: error.message },
-      severity: Severity.warning, // Warning instead of error to not crash the app
-    });
-    // Don't exit - let the app run without Bull Board if needed
-  }
+  // Résumé final
+  console.log('🎉 === INITIALIZATION COMPLETE ===');
+  console.log(`✅ Server: Running on port ${port}`);
+  console.log(
+    `${redisInitialized ? '✅' : '❌'} Redis: ${
+      redisInitialized ? 'Connected' : 'Failed'
+    }`
+  );
+  console.log(`✅ EMQX: Available for operations`);
+  console.log('🎉 === READY TO SERVE ===');
 
   // Handle server errors
   server.on('error', (error: any) => {
