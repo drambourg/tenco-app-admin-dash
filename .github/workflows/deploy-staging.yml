@@ -31,11 +31,11 @@ env:
 
   #  EMQX_BROKER: sample.gcp.emqxcloud.com
   EMQX_BROKER: ${{ vars.EMQX_BROKER_STAGING }}
-  EMQX_PORT: 1883
+  EMQX_PORT: ${{ vars.EMQX_PORT_STAGING || '1883' }}
   EMQX_USERNAME: ${{ vars.EMQX_USERNAME_STAGING }}
   EMQX_PASSWORD: ${{ secrets.EMQX_PASSWORD_STAGING }}
   EMQX_CLIENT_ID: ${{ secrets.EMQX_CLIENT_ID_STAGING }}
-  EMQX_QOS: 1
+  EMQX_QOS: ${{ vars.EMQX_QOS_STAGING || '1' }}
 
 jobs:
   deploy-cloud-run:
