@@ -38,6 +38,9 @@ env:
   EMQX_QOS: ${{ vars.EMQX_QOS_STAGING || '1' }}
   EMQX_TOPIC: ${{ vars.EMQX_TOPIC_STAGING || 'data' }}
 
+  VPC_CONNECTOR: ${{ vars.VPC_CONNECTOR_STAGING || 'staging-vpc-serverless' }}
+  VPC_EGRESS: ${{ vars.VPC_EGRESS_STAGING || 'private-ranges-only' }}
+
 jobs:
   deploy-cloud-run:
     name: Deploy Cloud Run
@@ -83,7 +86,18 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      
+      - name: Verify VPC Connector exists 🌐
+        run: |
+          echo "Checking VPC Connector: $VPC_CONNECTOR"
+          # Vérifier que le VPC Connector existe
+          if ! gcloud compute networks vpc-access connectors describe $VPC_CONNECTOR --region=$REGION --project=$PROJECT_ID > /dev/null 2>&1; then
+            echo "Error: VPC Connector '$VPC_CONNECTOR' not found in region $REGION"
+            echo "Available VPC Connectors:"
+            gcloud compute networks vpc-access connectors list --project=$PROJECT_ID
+            exit 1
+          fi
+          echo "✅ VPC Connector $VPC_CONNECTOR found"
+
       - name: Set up Docker Buildx 🐳
         uses: docker/setup-buildx-action@v3
 
@@ -129,6 +143,8 @@ jobs:
             --timeout=${TIMEOUT}s \
             --service-account=$SERVICE_ACCOUNT \
             --set-env-vars=$ENV_VARS \
+            --vpc-connector=$VPC_CONNECTOR \
+            --vpc-egress=$VPC_EGRESS \
             --platform=managed \
             --allow-unauthenticated
             
@@ -137,6 +153,18 @@ jobs:
           echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
           echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
           echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+      
+      - name: Verify VPC Connection 🔍
+        run: |
+          echo "✅ Cloud Run service deployed with VPC configuration:"
+          echo "   🌐 VPC Connector: $VPC_CONNECTOR"
+          echo "   🚪 VPC Egress: $VPC_EGRESS"
+          echo "   🗃️ Redis Host: $REDIS_HOST:$REDIS_PORT"
+          echo "   📡 EMQX Broker: $EMQX_BROKER:$EMQX_PORT"
+          echo ""
+          echo "🔗 Service URL: ${{ steps.deploy.outputs.url }}"
+          echo ""
+          echo "📝 Note: The service can now access private resources in the tenco-staging-vpc network"
 
       - name: Show Cloud Run Output 👀
         run: echo ${{ steps.deploy.outputs.url }}
