@@ -295,30 +295,7 @@ export class DashboardController {
                 </button>
             </a>
 
-            <!-- IoT Simulator Card -->
-            <a href="/iot-simulator" class="card">
-                <div class="card-icon">📡</div>
-                <h2 class="card-title">
-                    <span class="status-indicator status-online"></span>
-                    IoT Simulator
-                </h2>
-                <p class="card-description">
-                    Simulateur de capteurs IoT pour tester et développer vos applications. 
-                    Générez des données réalistes pour vos tests.
-                </p>
-                <ul class="card-features">
-                    <li>Simulation multi-capteurs</li>
-                    <li>Données géolocalisées</li>
-                    <li>Vibrations et températures</li>
-                    <li>Configuration flexible</li>
-                    <li>Monitoring en temps réel</li>
-                </ul>
-                <button class="card-button">
-                    Lancer le simulateur →
-                </button>
-            </a>
-
-            <!-- EMQX IoT Simulator Card -->
+             <!-- EMQX IoT Simulator Card -->
             <a href="/emqx-iot-simulator" class="card">
                 <div class="card-icon">🔌</div>
                 <h2 class="card-title">
@@ -340,6 +317,7 @@ export class DashboardController {
                     Accéder au simulateur EMQX →
                 </button>
             </a>
+
         </div>
     </div>
 
