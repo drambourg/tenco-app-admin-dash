@@ -527,7 +527,8 @@ export async function serveEmqxInterface(
             logs.scrollTop = logs.scrollHeight;
         }
 
-        // Configuration géographique
+        // Fonction timeline info corrigée
+        async function getTimelineInfo() {
             try {
                 const response = await fetch('/emqx-iot-simulator/timeline-info');
                 const result = await response.json();
@@ -1026,32 +1027,6 @@ export async function serveEmqxInterface(
             } catch (error) {
                 addLog(\`❌ Erreur lors des diagnostics détaillés: \${error.message}\`, 'error');
             }
-        }
-
-        async function resetTimeline() {
-            try {
-                addLog('🔄 Réinitialisation de la timeline...', 'warning');
-                
-                const response = await fetch('/emqx-iot-simulator/reset-timeline', {
-                    method: 'POST'
-                });
-
-                const result = await response.json();
-                
-                if (result.success) {
-                    addLog('✅ Timeline réinitialisée avec succès', 'success');
-                    refreshSimulatorStatus();
-                } else {
-                    addLog(\`❌ Échec reset timeline: \${result.error}\`, 'error');
-                }
-            } catch (error) {
-                addLog(\`❌ Erreur: \${error.message}\`, 'error');
-            }
-        }
-
-        function clearLogs() {
-            document.getElementById('logs').value = '';
-            addLog('🧹 Logs vidés', 'info');
         }
 
         // Initialisation avec diagnostic auto

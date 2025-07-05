@@ -184,7 +184,7 @@ export class EmqxIoTSimulatorController {
   ): Promise<void> => {
     try {
       const {
-        boundingBoxKm = 0.2,
+        boundingBoxKm = 0.1,
         centerLat = 48.8566,
         centerLng = 2.3522,
         macAddress = '00:11:22:33:44:TEST',

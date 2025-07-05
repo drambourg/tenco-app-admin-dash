@@ -483,7 +483,7 @@ export class EmqxIoTSensorSimulatorService {
     macAddress: string,
     centerLat = 48.8566,
     centerLng = 2.3522,
-    boundingBoxKm = 0.2
+    boundingBoxKm = 0.1
   ): Promise<SensorPayload> {
     // Use current time for test messages
     const sensorData = this.generateSensorData(
