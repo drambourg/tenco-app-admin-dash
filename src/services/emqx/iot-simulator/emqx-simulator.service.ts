@@ -102,7 +102,7 @@ export class EmqxIoTSensorSimulatorService {
     );
 
     // Generate second coordinate between 0.5 and 1.5 meters from coord1
-    const distance = faker.number.float({ max: 1.5, min: 0.5 });
+    const distance = faker.number.float({ max: 1, min: 0.5 });
     const bearing = faker.number.float({ max: 360, min: 0 });
 
     // Create a point from coord1 and calculate coord2 at the specified distance and bearing

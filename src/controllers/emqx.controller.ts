@@ -366,7 +366,7 @@ export async function serveEmqxInterface(
         <div class="card">
             <h3>🧪 Test Publication MQTT</h3>
             <input type="text" id="topic" placeholder="Topic MQTT" value="data">
-            <textarea id="message" placeholder="Message JSON" rows="4">{"mac": "00:11:22:33:44:55", "time": ${Date.now()}, "test": true}</textarea>
+            <textarea id="message" placeholder="Message JSON" rows="4">{"mac": "4c26cfef49c0", "time": ${Date.now()}, "test": true}</textarea>
             <select id="qos">
                 <option value="0">QoS 0 (At most once)</option>
                 <option value="1" selected>QoS 1 (At least once)</option>
@@ -441,8 +441,8 @@ export async function serveEmqxInterface(
             <div class="form-row">
                 <div class="form-group">
                     <label for="boundingBoxKm">Taille Zone (km)</label>
-                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.5" placeholder="0.5">
-                    <div class="value-display" id="boundingDisplay">Zone: 0.5km × 0.5km</div>
+                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.5" placeholder="0.1">
+                    <div class="value-display" id="boundingDisplay">Zone: 0.1km × 0.1km</div>
                 </div>
                 <div class="form-group">
                     <label for="durationMinutes">Durée (minutes)</label>
@@ -453,7 +453,7 @@ export async function serveEmqxInterface(
             <!-- Adresses MAC -->
             <div class="form-group">
                 <label for="macAddresses">Adresses MAC (séparées par des virgules)</label>
-                <input type="text" id="macAddresses" placeholder="00:11:22:33:44:55,00:11:22:33:44:56" value="00:11:22:33:44:55,00:11:22:33:44:56,00:11:22:33:44:57">
+                <input type="text" id="macAddresses" placeholder="ec06cdef49c0,4c26cfef49c0" value="ec06cdef49c0,4c26cfef49c0">
             </div>
 
             <!-- Mode Debug -->
@@ -958,7 +958,7 @@ export async function serveEmqxInterface(
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        macAddress: '00:11:22:33:44:TEST',
+                        macAddress: 'ec06cdef49c0:TEST',
                         centerLat: lat,
                         centerLng: lng,
                         boundingBoxKm: boundingBox,

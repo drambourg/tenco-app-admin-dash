@@ -194,7 +194,7 @@ export class EmqxIoTSimulatorController {
         boundingBoxKm = 0.2,
         centerLat = 48.8566,
         centerLng = 2.3522,
-        macAddress = '00:11:22:33:44:TEST',
+        macAddress = 'ec06cdef49c0:TEST',
         pubsubTopic = 'sensor-data-topic',
         usePubSub = false,
       } = req.body;
