@@ -108,11 +108,11 @@ export class EmqxIoTSensorSimulatorService {
     const vibrationData = [
       [
         faker.number.int({ max: 300000, min: 60000 }), // X
-        faker.number.float({ max: 60, min: 10, precision: 0.01 }), // Y
+        faker.number.float({ fractionDigits: 0.01, max: 60, min: 10 }), // Y
       ],
       [
         faker.number.int({ max: 300000, min: 60000 }), // X
-        faker.number.float({ max: 60, min: 10, precision: 0.01 }), // Y
+        faker.number.float({ fractionDigits: 0.01, max: 60, min: 10 }), // Y
       ],
     ];
 
@@ -122,13 +122,13 @@ export class EmqxIoTSensorSimulatorService {
     ];
 
     const accuracies = [
-      faker.number.float({ max: 2, min: 0, precision: 0.01 }),
-      faker.number.float({ max: 2, min: 0, precision: 0.01 }),
+      faker.number.float({ fractionDigits: 0.01, max: 2, min: 0 }),
+      faker.number.float({ fractionDigits: 0.01, max: 2, min: 0 }),
     ];
 
     const speeds = [
-      faker.number.float({ max: 6, min: 0, precision: 0.1 }),
-      faker.number.float({ max: 6, min: 0, precision: 0.1 }),
+      faker.number.float({ fractionDigits: 0.1, max: 6, min: 0 }),
+      faker.number.float({ fractionDigits: 0.1, max: 6, min: 0 }),
     ];
 
     return {

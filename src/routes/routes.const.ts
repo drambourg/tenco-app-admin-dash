@@ -24,6 +24,7 @@ export const API_ROUTES = {
   EMQX_IOT_SIMULATOR_STOP_SIMULATE: '/emqx-iot-simulator/stop',
   EMQX_IOT_SIMULATOR_TEST_SIMULATE: '/emqx-iot-simulator/test',
   EMQX_IOT_SIMULATOR_TIMELINE_INFO: '/emqx-iot-simulator/timeline-info',
+  EMQX_DIAGNOSTICS: '/emqx/diagnostics',
   HOME: `/`,
 
   IOT_SIMULATOR_HEALTH: '/iot-simulator/health',

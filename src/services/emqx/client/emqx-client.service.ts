@@ -18,14 +18,20 @@ export class EmqxClientService {
   private keepAliveTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isSimulationRunning = false;
+  private connectionDiagnostics = {
+    averageConnectionDuration: 0,
+    disconnectCount: 0,
+    lastConnectTime: 0,
+    lastDisconnectReason: '',
+  };
 
   private constructor(config: EmqxConfig) {
     this.config = {
-      connectTimeout: 30000, // Augmenté de 10s à 30s
-      keepAlive: 300, // Augmenté de 60s à 5 minutes (300s)
+      connectTimeout: 30000,
+      keepAlive: 30, // RÉDUIT à 30 secondes pour test
       port: 1883,
       qos: 1,
-      reconnectPeriod: 5000, // Reconnexion toutes les 5s
+      reconnectPeriod: 5000,
       ...config,
     };
   }
@@ -53,7 +59,10 @@ export class EmqxClientService {
       gcpLogger({
         fileLink: __filename,
         message: 'Simulation started - Enhanced keep-alive activated',
-        payload: { keepAlive: this.config.keepAlive },
+        payload: {
+          diagnostics: this.connectionDiagnostics,
+          keepAlive: this.config.keepAlive,
+        },
         severity: Severity.info,
       });
     } else {
@@ -62,6 +71,7 @@ export class EmqxClientService {
       gcpLogger({
         fileLink: __filename,
         message: 'Simulation stopped - Normal keep-alive restored',
+        payload: { diagnostics: this.connectionDiagnostics },
         severity: Severity.info,
       });
     }
@@ -73,29 +83,51 @@ export class EmqxClientService {
   private startEnhancedKeepAlive(): void {
     this.stopEnhancedKeepAlive(); // Arrêter l'ancien timer s'il existe
 
-    // Ping moins fréquent avec keep-alive plus long (toutes les 2 minutes)
+    // Ping très fréquent pour debug (toutes les 15 secondes)
     this.keepAliveTimer = setInterval(async () => {
       if (this.client && this.status.connected) {
         try {
+          const pingStart = Date.now();
           await this.ping();
+          const pingDuration = Date.now() - pingStart;
+
           gcpLogger({
             fileLink: __filename,
             message: 'Enhanced keep-alive ping successful',
+            payload: {
+              clientConnected: this.client.connected,
+              clientReconnecting: this.client.reconnecting,
+              pingDuration,
+            },
             severity: Severity.debug,
           });
         } catch (error) {
           gcpLogger({
             fileLink: __filename,
-            message: 'Enhanced keep-alive ping failed, attempting reconnection',
-            payload: { error: error.message },
+            message: 'Enhanced keep-alive ping failed',
+            payload: {
+              clientConnected: this.client?.connected,
+              diagnostics: this.connectionDiagnostics,
+              error: error.message,
+            },
             severity: Severity.warning,
           });
 
-          // Tentative de reconnexion immédiate si le ping échoue
-          this.attemptReconnection();
+          // Ne pas forcer la reconnexion ici, laisser MQTT gérer
         }
+      } else {
+        gcpLogger({
+          fileLink: __filename,
+          message: 'Keep-alive skipped - client not ready',
+          payload: {
+            clientConnected: this.client?.connected,
+            clientExists: !!this.client,
+            statusConnected: this.status.connected,
+          },
+          severity: Severity.warning,
+        });
       }
-    }, 120000); // Toutes les 2 minutes pendant la simulation (au lieu de 30s)
+    }, 15000); // Toutes les 15 secondes pour debug
   }
 
   /**
@@ -109,57 +141,31 @@ export class EmqxClientService {
   }
 
   /**
-   * Tentative de reconnexion automatique
-   */
-  private async attemptReconnection(): Promise<void> {
-    if (this.reconnectTimer) {
-      return; // Reconnexion déjà en cours
-    }
-
-    this.reconnectTimer = setTimeout(async () => {
-      try {
-        gcpLogger({
-          fileLink: __filename,
-          message: 'Attempting automatic reconnection',
-          severity: Severity.info,
-        });
-
-        await this.connect();
-        this.reconnectTimer = null;
-
-        gcpLogger({
-          fileLink: __filename,
-          message: 'Automatic reconnection successful',
-          severity: Severity.info,
-        });
-      } catch (error) {
-        this.reconnectTimer = null;
-        gcpLogger({
-          fileLink: __filename,
-          message: 'Automatic reconnection failed',
-          payload: { error: error.message },
-          severity: Severity.error,
-        });
-      }
-    }, 5000); // Attendre 5 secondes avant de tenter la reconnexion (au lieu de 2s)
-  }
-
-  /**
-   * Crée les options de connexion MQTT avec paramètres optimisés
+   * Crée les options de connexion MQTT avec debug amélioré
    */
   private createConnectionOptions(): IClientOptions {
     const options: IClientOptions = {
-      clean: false, // Changé à false pour maintenir la session
+      clean: true, // REMIS à true pour éviter les sessions persistantes problématiques
       clientId: this.config.clientId || `emqx-client-${Date.now()}`,
       connectTimeout: this.config.connectTimeout,
       keepalive: this.config.keepAlive,
       protocolVersion: 4,
 
       reconnectPeriod: this.config.reconnectPeriod,
-
-      // Ajout d'options pour une connexion plus stable
+      // Désactivé car on ne s'abonne à rien
       reschedulePings: true,
-      resubscribe: true, // MQTT 3.1.1 pour meilleure compatibilité
+      resubscribe: false, // MQTT 3.1.1
+      // Nouvelles options pour debug
+      will: {
+        payload: JSON.stringify({
+          clientId: this.config.clientId,
+          reason: 'unexpected_disconnect',
+          timestamp: Date.now(),
+        }),
+        qos: 0,
+        retain: false,
+        topic: `$SYS/client/${this.config.clientId}/disconnect`,
+      },
     };
 
     // Ajout des credentials si fournis
@@ -172,13 +178,14 @@ export class EmqxClientService {
   }
 
   /**
-   * Établit la connexion au broker EMQX avec gestion améliorée
+   * Établit la connexion au broker EMQX avec diagnostics améliorés
    */
   public async connect(): Promise<void> {
     if (this.client && this.status.connected && this.client.connected) {
       gcpLogger({
         fileLink: __filename,
         message: 'EMQX already connected',
+        payload: { diagnostics: this.connectionDiagnostics },
         severity: Severity.debug,
       });
       return;
@@ -189,11 +196,13 @@ export class EmqxClientService {
     }
 
     this.status.connecting = true;
+    const connectStartTime = Date.now();
 
     try {
       // Fermer l'ancienne connexion si elle existe
       if (this.client) {
         try {
+          this.client.removeAllListeners();
           await this.client.endAsync();
         } catch (e) {
           // Ignorer les erreurs de fermeture
@@ -207,14 +216,17 @@ export class EmqxClientService {
 
       gcpLogger({
         fileLink: __filename,
-        message: 'Tentative de connexion EMQX avec paramètres optimisés',
+        message: 'Tentative de connexion EMQX avec diagnostics',
         payload: {
           broker: this.config.broker,
           brokerUrl,
           clean: options.clean,
           clientId: options.clientId,
+          connectTimeout: options.connectTimeout,
+          diagnostics: this.connectionDiagnostics,
           keepAlive: options.keepalive,
           port: this.config.port,
+          protocolVersion: options.protocolVersion,
           username: this.config.username ? '***' : undefined,
         },
         severity: Severity.info,
@@ -229,10 +241,10 @@ export class EmqxClientService {
               `Timeout de connexion EMQX après ${this.config.connectTimeout}ms pour ${brokerUrl}`
             )
           );
-        }, this.config.connectTimeout); // Maintenant 30 secondes au lieu de 10
+        }, this.config.connectTimeout);
 
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        this.client!.on('connect', () => {
+        this.client!.on('connect', (connack) => {
           clearTimeout(timeout);
           this.status.connected = true;
           this.status.connecting = false;
@@ -240,13 +252,19 @@ export class EmqxClientService {
           this.status.reconnectAttempts = 0;
           this.status.error = undefined;
 
+          const connectDuration = Date.now() - connectStartTime;
+          this.connectionDiagnostics.lastConnectTime = Date.now();
+
           gcpLogger({
             fileLink: __filename,
             message: 'Connexion EMQX établie avec succès',
             payload: {
               brokerUrl,
               clientId: options.clientId,
-              sessionPresent: this.client?.connected,
+              connectDuration,
+              diagnostics: this.connectionDiagnostics,
+              returnCode: connack?.returnCode,
+              sessionPresent: connack?.sessionPresent,
             },
             severity: Severity.info,
           });
@@ -262,13 +280,17 @@ export class EmqxClientService {
           this.status.error = error.message;
           this.status.reconnectAttempts += 1;
 
+          this.connectionDiagnostics.lastDisconnectReason = `connect_error: ${error.message}`;
+
           gcpLogger({
             fileLink: __filename,
             message: 'Erreur de connexion EMQX',
             payload: {
               attempts: this.status.reconnectAttempts,
               brokerUrl,
+              diagnostics: this.connectionDiagnostics,
               error: error.message,
+              errorCode: (error as any).code,
             },
             severity: Severity.error,
           });
@@ -287,7 +309,7 @@ export class EmqxClientService {
   }
 
   /**
-   * Configure les event listeners pour le client MQTT avec gestion améliorée
+   * Configure les event listeners avec diagnostics détaillés
    */
   private setupEventListeners(): void {
     if (!this.client) return;
@@ -297,51 +319,85 @@ export class EmqxClientService {
       gcpLogger({
         fileLink: __filename,
         message: 'Tentative de reconnexion EMQX automatique',
-        payload: { attempts: this.status.reconnectAttempts },
+        payload: {
+          attempts: this.status.reconnectAttempts,
+          diagnostics: this.connectionDiagnostics,
+        },
         severity: Severity.warning,
       });
     });
 
     this.client.on('close', () => {
+      const now = Date.now();
+      if (this.connectionDiagnostics.lastConnectTime > 0) {
+        const connectionDuration =
+          now - this.connectionDiagnostics.lastConnectTime;
+        this.connectionDiagnostics.averageConnectionDuration =
+          (this.connectionDiagnostics.averageConnectionDuration +
+            connectionDuration) /
+          2;
+      }
+
       this.status.connected = false;
+      this.connectionDiagnostics.disconnectCount += 1;
+      this.connectionDiagnostics.lastDisconnectReason = 'close_event';
+
       gcpLogger({
         fileLink: __filename,
         message: 'Connexion EMQX fermée',
         payload: {
+          diagnostics: this.connectionDiagnostics,
           isSimulationRunning: this.isSimulationRunning,
           willAttemptReconnect: this.isSimulationRunning,
         },
         severity: Severity.warning,
       });
-
-      // Reconnexion automatique si une simulation est en cours
-      if (this.isSimulationRunning) {
-        this.attemptReconnection();
-      }
     });
 
     this.client.on('offline', () => {
       this.status.connected = false;
+      this.connectionDiagnostics.lastDisconnectReason = 'offline_event';
+
       gcpLogger({
         fileLink: __filename,
         message: 'Client EMQX hors ligne',
-        payload: { isSimulationRunning: this.isSimulationRunning },
+        payload: {
+          diagnostics: this.connectionDiagnostics,
+          isSimulationRunning: this.isSimulationRunning,
+        },
         severity: Severity.warning,
       });
+    });
 
-      // Reconnexion automatique si une simulation est en cours
-      if (this.isSimulationRunning) {
-        this.attemptReconnection();
-      }
+    this.client.on('disconnect', (packet) => {
+      this.status.connected = false;
+      this.connectionDiagnostics.lastDisconnectReason = `disconnect_packet: ${JSON.stringify(
+        packet
+      )}`;
+
+      gcpLogger({
+        fileLink: __filename,
+        message: 'Client EMQX déconnecté par packet',
+        payload: {
+          diagnostics: this.connectionDiagnostics,
+          isSimulationRunning: this.isSimulationRunning,
+          packet,
+        },
+        severity: Severity.warning,
+      });
     });
 
     // Gestion des erreurs en continu
     this.client.on('error', (error) => {
+      this.connectionDiagnostics.lastDisconnectReason = `runtime_error: ${error.message}`;
+
       gcpLogger({
         fileLink: __filename,
         message: 'Erreur EMQX continue',
         payload: {
+          diagnostics: this.connectionDiagnostics,
           error: error.message,
+          errorCode: (error as any).code,
           isSimulationRunning: this.isSimulationRunning,
         },
         severity: Severity.error,
@@ -356,34 +412,12 @@ export class EmqxClientService {
     topic: string,
     message: string | Buffer,
     qos?: 0 | 1 | 2,
-    retries = 3
+    retries = 1 // RÉDUIT à 1 retry pour éviter les boucles
   ): Promise<void> {
-    if (!this.client || !this.status.connected) {
-      // Tentative de reconnexion automatique
-      if (this.isSimulationRunning && retries > 0) {
-        gcpLogger({
-          fileLink: __filename,
-          message: 'EMQX non connecté, tentative de reconnexion pour publish',
-          severity: Severity.warning,
-        });
-
-        try {
-          await this.connect();
-        } catch (connectError) {
-          if (retries > 1) {
-            // Retry après délai
-            await new Promise((resolve) => {
-              setTimeout(resolve, 1000);
-            });
-            return this.publish(topic, message, qos, retries - 1);
-          }
-          throw new Error(
-            `Failed to reconnect for publish: ${connectError.message}`
-          );
-        }
-      } else {
-        throw new Error('Client EMQX non connecté');
-      }
+    if (!this.client || !this.status.connected || !this.client.connected) {
+      throw new Error(
+        `Client EMQX non connecté - Status: ${this.status.connected}, Client: ${this.client?.connected}`
+      );
     }
 
     const publishQos = qos ?? this.config.qos ?? 1;
@@ -396,6 +430,7 @@ export class EmqxClientService {
             fileLink: __filename,
             message: 'Erreur lors de la publication MQTT',
             payload: {
+              diagnostics: this.connectionDiagnostics,
               error: error.message,
               qos: publishQos,
               retries: retries - 1,
@@ -403,17 +438,7 @@ export class EmqxClientService {
             },
             severity: Severity.error,
           });
-
-          // Retry en cas d'erreur si des tentatives restent
-          if (retries > 1 && this.isSimulationRunning) {
-            setTimeout(() => {
-              this.publish(topic, message, qos, retries - 1)
-                .then(resolve)
-                .catch(reject);
-            }, 1000);
-          } else {
-            reject(error);
-          }
+          reject(error);
         } else {
           gcpLogger({
             fileLink: __filename,
@@ -430,6 +455,44 @@ export class EmqxClientService {
         }
       });
     });
+  }
+
+  /**
+   * Obtient le statut de la connexion avec diagnostics
+   */
+  public getStatus(): EmqxConnectionStatus & { diagnostics: any } {
+    return {
+      ...this.status,
+      diagnostics: this.connectionDiagnostics,
+      isSimulationRunning: this.isSimulationRunning,
+    };
+  }
+
+  /**
+   * Obtient les diagnostics de connexion
+   */
+  public getDiagnostics() {
+    return {
+      ...this.connectionDiagnostics,
+      clientInfo: this.client
+        ? {
+            connected: this.client.connected,
+            options: {
+              clean: this.client.options.clean,
+              clientId: this.client.options.clientId,
+              keepalive: this.client.options.keepalive,
+            },
+            reconnecting: this.client.reconnecting,
+          }
+        : null,
+      currentConfig: {
+        broker: this.config.broker,
+        connectTimeout: this.config.connectTimeout,
+        keepAlive: this.config.keepAlive,
+        port: this.config.port,
+        reconnectPeriod: this.config.reconnectPeriod,
+      },
+    };
   }
 
   /**
@@ -542,22 +605,13 @@ export class EmqxClientService {
         gcpLogger({
           fileLink: __filename,
           message: 'Connexion EMQX fermée proprement',
+          payload: { diagnostics: this.connectionDiagnostics },
           severity: Severity.info,
         });
 
         resolve();
       });
     });
-  }
-
-  /**
-   * Obtient le statut de la connexion
-   */
-  public getStatus(): EmqxConnectionStatus {
-    return {
-      ...this.status,
-      isSimulationRunning: this.isSimulationRunning,
-    };
   }
 
   /**
@@ -574,7 +628,7 @@ export class EmqxClientService {
    * Teste la connexion avec retry amélioré
    */
   public async ping(): Promise<boolean> {
-    if (!this.client || !this.status.connected) {
+    if (!this.client || !this.status.connected || !this.client.connected) {
       return false;
     }
 
@@ -583,6 +637,7 @@ export class EmqxClientService {
       const testTopic = `$SYS/ping/${this.config.clientId}`;
       const testMessage = JSON.stringify({
         clientId: this.config.clientId,
+        diagnostics: this.connectionDiagnostics,
         simulationRunning: this.isSimulationRunning,
         timestamp: Date.now(),
         type: 'ping',
@@ -594,7 +649,10 @@ export class EmqxClientService {
       gcpLogger({
         fileLink: __filename,
         message: 'Échec du ping EMQX',
-        payload: { error: error.message },
+        payload: {
+          diagnostics: this.connectionDiagnostics,
+          error: error.message,
+        },
         severity: Severity.warning,
       });
       return false;

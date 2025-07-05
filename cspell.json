@@ -14,14 +14,8 @@
     "**.*hbs",
     ".github/**/*.*"
   ],
-  "ignoreRegExpList": [
-    "HexDigits",
-    "HexValues",
-    "Urls"
-  ],
-  "import": [
-    "./node_modules/cspell-dict-fr-fr/cspell-ext.json"
-  ],
+  "ignoreRegExpList": ["HexDigits", "HexValues", "Urls"],
+  "import": ["./node_modules/cspell-dict-fr-fr/cspell-ext.json"],
   "language": "en,fr",
   "version": "0.2",
   "words": [
@@ -30,6 +24,7 @@
     "bbox",
     "camelcase",
     "cloudrun",
+    "connack",
     "Datapoint",
     "Datapoints",
     "date-fns",

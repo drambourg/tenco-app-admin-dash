@@ -1,3 +1,5 @@
+import net from 'net';
+
 import { Severity } from '@google-cloud/logging';
 import { Request, Response } from 'express';
 
@@ -281,6 +283,8 @@ export async function getEmqxStats(req: Request, res: Response): Promise<void> {
     });
   }
 }
+// Updated emqx.controller.ts - Enhanced EMQX interface with configurable parameters
+
 export async function serveEmqxInterface(
   req: Request,
   res: Response
@@ -457,8 +461,19 @@ export async function serveEmqxInterface(
             <h3>🔧 Contrôles Avancés</h3>
             <button class="btn-primary" onclick="showCurrentConfig()">📋 Config Actuelle</button>
             <button class="btn-primary" onclick="getTimelineInfo()">⏰ Timeline Info</button>
+            <button class="btn-primary" onclick="getDiagnostics()">🔍 Diagnostics EMQX</button>
             <button class="btn-warning" onclick="resetTimeline()">🔄 Reset Timeline</button>
             <button class="btn-danger" onclick="clearLogs()">🧹 Vider Logs</button>
+        </div>
+
+        <!-- Diagnostics EMQX -->
+        <div class="card">
+            <h3>🔍 Diagnostics EMQX</h3>
+            <div id="diagnosticsInfo" class="timeline-info">
+                Cliquez sur "Diagnostics EMQX" pour voir les détails de connexion
+            </div>
+            <button class="btn-primary" onclick="getDiagnostics()">🔍 Analyser Connexion</button>
+            <button class="btn-warning" onclick="showDetailedDiagnostics()">📊 Détails Complets</button>
         </div>
     </div>
 
@@ -510,6 +525,48 @@ export async function serveEmqxInterface(
             const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
             logs.value += \`[\${timestamp}] \${icon} \${message}\\n\`;
             logs.scrollTop = logs.scrollHeight;
+        }
+
+        // Configuration géographique
+            try {
+                const response = await fetch('/emqx-iot-simulator/timeline-info');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const timeline = result.timeline;
+                    addLog(\`⏰ Timeline - Active: \${timeline.isTimelineActive}, Start: \${timeline.globalStartTime ? new Date(timeline.globalStartTime).toLocaleString() : 'Non défini'}\`, 'info');
+                } else {
+                    addLog(\`❌ Erreur timeline: \${result.error}\`, 'error');
+                }
+            } catch (error) {
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
+            }
+        }
+
+        async function resetTimeline() {
+            try {
+                addLog('🔄 Réinitialisation de la timeline...', 'warning');
+                
+                const response = await fetch('/emqx-iot-simulator/reset-timeline', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('✅ Timeline réinitialisée avec succès', 'success');
+                    refreshSimulatorStatus();
+                } else {
+                    addLog(\`❌ Échec reset timeline: \${result.error}\`, 'error');
+                }
+            } catch (error) {
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').value = '';
+            addLog('🧹 Logs vidés', 'info');
         }
 
         // Configuration géographique
@@ -840,19 +897,134 @@ export async function serveEmqxInterface(
             }
         }
 
-        async function getTimelineInfo() {
+        async function getDiagnostics() {
             try {
-                const response = await fetch('/emqx-iot-simulator/timeline-info');
+                addLog('🔍 Récupération des diagnostics EMQX...', 'info');
+                
+                const response = await fetch('/emqx/diagnostics');
                 const result = await response.json();
                 
                 if (result.success) {
-                    const timeline = result.timeline;
-                    addLog(\`⏰ Timeline - Active: \${timeline.isTimelineActive}, Start: \${timeline.globalStartTime ? new Date(timeline.globalStartTime).toLocaleString() : 'Non défini'}\`, 'info');
+                    const data = result.data;
+                    const diagnosticsDiv = document.getElementById('diagnosticsInfo');
+                    
+                    // Résumé simple
+                    const statusIcon = data.service.status === 'connected' ? '✅' : '❌';
+                    const networkIcon = data.network.reachable ? '🌐' : '🚫';
+                    
+                    diagnosticsDiv.innerHTML = \`
+                        <strong>📊 Résumé Diagnostics:</strong><br>
+                        \${statusIcon} Statut: \${data.service.status}<br>
+                        \${networkIcon} Réseau: \${data.network.reachable ? 'OK' : 'ERREUR'} 
+                        \${data.network.latency ? '(' + data.network.latency + 'ms)' : ''}<br>
+                        🔄 Déconnexions: \${data.diagnostics.disconnectCount || 0}<br>
+                        ⏱️ Durée moyenne connexion: \${data.diagnostics.averageConnectionDuration ? Math.round(data.diagnostics.averageConnectionDuration / 1000) + 's' : 'N/A'}<br>
+                        📋 Dernière erreur: \${data.diagnostics.lastDisconnectReason || 'Aucune'}
+                    \`;
+                    
+                    // Logs détaillés
+                    addLog('📊 === DIAGNOSTICS EMQX ===', 'info');
+                    addLog(\`   Status: \${data.service.status}\`, 'info');
+                    addLog(\`   Réseau: \${data.network.reachable ? 'OK' : 'ERREUR'}\`, data.network.reachable ? 'success' : 'error');
+                    
+                    if (data.network.error) {
+                        addLog(\`   Erreur réseau: \${data.network.error}\`, 'error');
+                    }
+                    
+                    if (data.network.latency) {
+                        addLog(\`   Latence: \${data.network.latency}ms\`, data.network.latency > 1000 ? 'warning' : 'info');
+                    }
+                    
+                    addLog(\`   Déconnexions: \${data.diagnostics.disconnectCount || 0}\`, 'info');
+                    addLog(\`   Keep-alive: \${data.config.keepAlive}s\`, 'info');
+                    addLog(\`   Timeout connexion: \${data.config.connectTimeout}ms\`, 'info');
+                    
+                    if (data.diagnostics.lastDisconnectReason) {
+                        addLog(\`   Dernière déconnexion: \${data.diagnostics.lastDisconnectReason}\`, 'warning');
+                    }
+                    
+                    // Recommandations
+                    if (data.recommendations && data.recommendations.length > 0) {
+                        addLog('💡 RECOMMANDATIONS:', 'info');
+                        data.recommendations.forEach(rec => {
+                            const type = rec.includes('❌') ? 'error' : rec.includes('⚠️') ? 'warning' : 'info';
+                            addLog(\`   \${rec}\`, type);
+                        });
+                    }
+                    
+                    addLog('📊 === FIN DIAGNOSTICS ===', 'info');
+                    
                 } else {
-                    addLog(\`❌ Erreur timeline: \${result.error}\`, 'error');
+                    addLog(\`❌ Erreur diagnostics: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`❌ Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur lors des diagnostics: \${error.message}\`, 'error');
+            }
+        }
+
+        async function showDetailedDiagnostics() {
+            try {
+                const response = await fetch('/emqx/diagnostics');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    
+                    addLog('🔬 === DIAGNOSTICS DÉTAILLÉS ===', 'info');
+                    addLog('📊 SERVICE:', 'info');
+                    addLog(\`   Connected: \${data.service.status}\`, 'info');
+                    addLog(\`   Connecting: \${data.service.connecting}\`, 'info');
+                    addLog(\`   Reconnect Attempts: \${data.service.reconnectAttempts}\`, 'info');
+                    addLog(\`   Last Connected: \${data.service.lastConnected ? new Date(data.service.lastConnected).toLocaleString() : 'N/A'}\`, 'info');
+                    addLog(\`   Simulation Running: \${data.service.isSimulationRunning}\`, 'info');
+                    
+                    addLog('⚙️ CONFIGURATION:', 'info');
+                    addLog(\`   Broker: \${data.config.broker}:\${data.config.port}\`, 'info');
+                    addLog(\`   Keep-Alive: \${data.config.keepAlive}s\`, 'info');
+                    addLog(\`   Connect Timeout: \${data.config.connectTimeout}ms\`, 'info');
+                    addLog(\`   Reconnect Period: \${data.config.reconnectPeriod}ms\`, 'info');
+                    addLog(\`   QoS: \${data.config.qos}\`, 'info');
+                    addLog(\`   Has Credentials: \${data.config.hasCredentials}\`, 'info');
+                    
+                    addLog('🌐 RÉSEAU:', 'info');
+                    addLog(\`   Reachable: \${data.network.reachable}\`, data.network.reachable ? 'success' : 'error');
+                    if (data.network.latency) {
+                        addLog(\`   Latency: \${data.network.latency}ms\`, 'info');
+                    }
+                    if (data.network.error) {
+                        addLog(\`   Network Error: \${data.network.error}\`, 'error');
+                    }
+                    
+                    addLog('📈 STATISTIQUES:', 'info');
+                    addLog(\`   Disconnect Count: \${data.diagnostics.disconnectCount || 0}\`, 'info');
+                    addLog(\`   Average Connection Duration: \${data.diagnostics.averageConnectionDuration ? Math.round(data.diagnostics.averageConnectionDuration / 1000) + 's' : 'N/A'}\`, 'info');
+                    addLog(\`   Last Disconnect Reason: \${data.diagnostics.lastDisconnectReason || 'None'}\`, 'info');
+                    
+                    if (data.diagnostics.currentConfig) {
+                        addLog('🔧 CONFIG COURANTE:', 'info');
+                        addLog(\`   Keep Alive: \${data.diagnostics.currentConfig.keepAlive}s\`, 'info');
+                        addLog(\`   Connect Timeout: \${data.diagnostics.currentConfig.connectTimeout}ms\`, 'info');
+                        addLog(\`   Reconnect Period: \${data.diagnostics.currentConfig.reconnectPeriod}ms\`, 'info');
+                    }
+                    
+                    if (data.diagnostics.clientInfo) {
+                        addLog('👤 CLIENT INFO:', 'info');
+                        addLog(\`   Connected: \${data.diagnostics.clientInfo.connected}\`, 'info');
+                        addLog(\`   Reconnecting: \${data.diagnostics.clientInfo.reconnecting}\`, 'info');
+                        if (data.diagnostics.clientInfo.options) {
+                            addLog(\`   Client Keep-alive: \${data.diagnostics.clientInfo.options.keepalive}s\`, 'info');
+                            addLog(\`   Client ID: \${data.diagnostics.clientInfo.options.clientId}\`, 'info');
+                            addLog(\`   Clean Session: \${data.diagnostics.clientInfo.options.clean}\`, 'info');
+                        }
+                    }
+                    
+                    addLog('🔬 === FIN DIAGNOSTICS DÉTAILLÉS ===', 'info');
+                    
+                } else {
+                    addLog(\`❌ Erreur diagnostics détaillés: \${result.error}\`, 'error');
+                }
+            } catch (error) {
+                addLog(\`❌ Erreur lors des diagnostics détaillés: \${error.message}\`, 'error');
             }
         }
 
@@ -882,7 +1054,7 @@ export async function serveEmqxInterface(
             addLog('🧹 Logs vidés', 'info');
         }
 
-        // Initialisation
+        // Initialisation avec diagnostic auto
         document.addEventListener('DOMContentLoaded', () => {
             addLog('🚀 Interface EMQX chargée', 'success');
             updateDisplays();
@@ -890,11 +1062,21 @@ export async function serveEmqxInterface(
             refreshStats();
             refreshSimulatorStatus();
             
+            // Diagnostic automatique au chargement
+            setTimeout(() => {
+                getDiagnostics();
+            }, 2000);
+            
             // Auto-refresh toutes les 30 secondes
             setInterval(() => {
                 refreshStats();
                 refreshSimulatorStatus();
             }, 30000);
+            
+            // Diagnostic automatique toutes les 2 minutes
+            setInterval(() => {
+                getDiagnostics();
+            }, 120000);
         });
     </script>
 </body>
@@ -918,5 +1100,180 @@ export async function serveEmqxInterface(
     });
 
     res.status(500).send("Erreur lors du chargement de l'interface EMQX");
+  }
+}
+
+/**
+ * Génère des recommandations basées sur les diagnostics
+ */
+function generateRecommendations(diagnostics: any, networkTest: any): string[] {
+  const recommendations = [];
+
+  if (!networkTest.reachable) {
+    recommendations.push(
+      "❌ Le broker EMQX n'est pas accessible réseau - vérifier la connectivité"
+    );
+  }
+
+  if (diagnostics.disconnectCount > 5) {
+    recommendations.push(
+      '⚠️ Trop de déconnexions - vérifier la stabilité du broker'
+    );
+  }
+
+  if (diagnostics.averageConnectionDuration < 30000) {
+    recommendations.push(
+      '⏱️ Connexions très courtes - augmenter le keep-alive'
+    );
+  }
+
+  if (diagnostics.lastDisconnectReason.includes('error')) {
+    recommendations.push(
+      '🔧 Erreurs de connexion - vérifier les credentials EMQX'
+    );
+  }
+
+  if (diagnostics.currentConfig?.keepAlive < 60) {
+    recommendations.push(
+      '📊 Keep-alive trop court - recommandé: minimum 60 secondes'
+    );
+  }
+
+  if (networkTest.latency > 1000) {
+    recommendations.push(
+      '🌐 Latence réseau élevée - considérer un broker plus proche'
+    );
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push(
+      '✅ Configuration semble correcte - monitorer les logs'
+    );
+  }
+
+  return recommendations;
+}
+
+/**
+ * Test de connectivité réseau
+ */
+async function testNetworkConnectivity(
+  broker: string,
+  port: number
+): Promise<any> {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const socket = new net.Socket();
+
+    socket.setTimeout(5000); // 5 secondes timeout
+
+    socket.on('connect', () => {
+      const latency = Date.now() - startTime;
+      socket.destroy();
+      resolve({
+        error: null,
+        latency,
+        reachable: true,
+      });
+    });
+
+    socket.on('error', (error) => {
+      resolve({
+        error: error.message,
+        latency: null,
+        reachable: false,
+      });
+    });
+
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve({
+        error: 'Connection timeout',
+        latency: null,
+        reachable: false,
+      });
+    });
+
+    try {
+      socket.connect(port, broker);
+    } catch (error) {
+      resolve({
+        error: error.message,
+        latency: null,
+        reachable: false,
+      });
+    }
+  });
+}
+
+/**
+ * Diagnostics EMQX pour comprendre les déconnexions
+ */
+export async function getEmqxDiagnostics(
+  req: Request,
+  res: Response
+): Promise<void> {
+  const functionName = 'getEmqxDiagnostics';
+
+  try {
+    const emqxService = EmqxClientService.getInstance();
+    const status = emqxService.getStatus();
+    const config = emqxService.getConfig();
+    const diagnostics = emqxService.getDiagnostics();
+
+    // Test de connectivité réseau
+    const networkTest = await testNetworkConnectivity(
+      config.broker,
+      config.port
+    );
+
+    const fullDiagnostics = {
+      config: {
+        broker: config.broker,
+        connectTimeout: config.connectTimeout,
+        hasCredentials: !!config.username,
+        keepAlive: config.keepAlive,
+        port: config.port,
+        qos: config.qos,
+        reconnectPeriod: config.reconnectPeriod,
+      },
+      diagnostics,
+      network: networkTest,
+      recommendations: generateRecommendations(diagnostics, networkTest),
+      service: {
+        connecting: status.connecting,
+        error: status.error,
+        isSimulationRunning: status.isSimulationRunning,
+        lastConnected: status.lastConnected,
+        reconnectAttempts: status.reconnectAttempts,
+        status: status.connected ? 'connected' : 'disconnected',
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    gcpLogger({
+      fileLink: `${__filename}:${functionName}`,
+      message: 'EMQX diagnostics retrieved',
+      payload: fullDiagnostics,
+      severity: Severity.info,
+    });
+
+    res.status(200).json({
+      data: fullDiagnostics,
+      success: true,
+    });
+  } catch (error) {
+    gcpLogger({
+      fileLink: `${__filename}:${functionName}`,
+      message: 'Error retrieving EMQX diagnostics',
+      payload: { error: error.message },
+      severity: Severity.error,
+    });
+
+    res.status(500).json({
+      error: error.message,
+      success: false,
+      timestamp: new Date().toISOString(),
+    });
   }
 }
