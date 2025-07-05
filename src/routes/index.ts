@@ -9,7 +9,6 @@ import {
 import { serveHomePage } from '../controllers/dashboard-controller';
 import EmqxIoTSimulatorController from '../controllers/emqx-iot-simulator.controller';
 import {
-  getEmqxDiagnostics,
   getEmqxStats,
   healthEmqx,
   serveEmqxInterface,
@@ -79,7 +78,6 @@ router.post(
   API_ROUTES.EMQX_IOT_SIMULATOR_RESET_TIMELINE,
   emqxIoTSimulatorController.resetEmqxSimulatorTimeline
 );
-router.get(API_ROUTES.EMQX_DIAGNOSTICS, getEmqxDiagnostics);
 router.post(
   API_ROUTES.EMQX_IOT_SIMULATOR_HEALTH,
   emqxIoTSimulatorController.healthEmqxSimulatorCheck

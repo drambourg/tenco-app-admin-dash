@@ -1,5 +1,3 @@
-import net from 'net';
-
 import { Severity } from '@google-cloud/logging';
 import { Request, Response } from 'express';
 
@@ -340,13 +338,15 @@ export async function serveEmqxInterface(
         .simulator-stopped { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .timeline-info { background: #e2e3e5; border: 1px solid #d6d8db; border-radius: 6px; padding: 15px; margin: 10px 0; }
         .value-display { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 5px 0; }
+        .publish-mode-section { background: #e8f5e8; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin: 15px 0; border-left: 4px solid #28a745; }
+        .publish-mode-section h4 { margin-top: 0; color: #28a745; }
     </style>
 </head>
 <body>
     <div class="header">
         <a href="/" class="home-link" title="Retour à l'accueil">🏠</a>
         <h1>🔌 EMQX Service Manager</h1>
-        <p>Gestion du broker MQTT et simulateur IoT avec configuration géographique</p>
+        <p>Gestion du broker MQTT et simulateur IoT avec configuration géographique et Pub/Sub</p>
     </div>
     
     <div id="status" class="status disconnected">
@@ -373,6 +373,37 @@ export async function serveEmqxInterface(
                 <option value="2">QoS 2 (Exactly once)</option>
             </select>
             <button class="btn-success" onclick="testPublish()">📡 Publier Message</button>
+        </div>
+
+        <!-- Configuration Mode Pub/Sub -->
+        <div class="card">
+            <h3>🌐 Mode de Publication</h3>
+            
+            <!-- Sélecteur de mode -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Mode de Publication</label>
+                    <select id="publishMode">
+                        <option value="emqx">📡 EMQX MQTT</option>
+                        <option value="pubsub">☁️ GCP Pub/Sub</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pubsubTopic">Topic Pub/Sub</label>
+                    <input type="text" id="pubsubTopic" value="sensor-data-topic" placeholder="sensor-data-topic">
+                    <div class="value-display" id="topicDisplay">Topic: sensor-data-topic</div>
+                </div>
+            </div>
+
+            <!-- Description du mode sélectionné -->
+            <div id="modeDescription" class="timeline-info">
+                <strong>📡 Mode EMQX MQTT:</strong><br>
+                Les données sont publiées via MQTT vers le broker EMQX configuré.<br>
+                Nécessite une connexion EMQX active.
+            </div>
+
+            <button class="btn-primary" onclick="togglePublishMode()">🔄 Changer de Mode</button>
+            <button class="btn-primary" onclick="validatePublishConfig()">✅ Valider Config</button>
         </div>
 
         <!-- Configuration Géographique -->
@@ -410,8 +441,8 @@ export async function serveEmqxInterface(
             <div class="form-row">
                 <div class="form-group">
                     <label for="boundingBoxKm">Taille Zone (km)</label>
-                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.2" placeholder="0.2">
-                    <div class="value-display" id="boundingDisplay">Zone: 0.2km × 0.2km</div>
+                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.5" placeholder="0.5">
+                    <div class="value-display" id="boundingDisplay">Zone: 0.5km × 0.5km</div>
                 </div>
                 <div class="form-group">
                     <label for="durationMinutes">Durée (minutes)</label>
@@ -429,7 +460,7 @@ export async function serveEmqxInterface(
             <div style="margin: 15px 0;">
                 <label style="display: flex; align-items: center; gap: 8px;">
                     <input type="checkbox" id="debugMode" style="width: auto;">
-                    <span>Mode Debug (affichage uniquement, pas d'envoi MQTT)</span>
+                    <span>Mode Debug (affichage uniquement, pas d'envoi)</span>
                 </label>
             </div>
 
@@ -462,6 +493,7 @@ export async function serveEmqxInterface(
             <button class="btn-primary" onclick="showCurrentConfig()">📋 Config Actuelle</button>
             <button class="btn-primary" onclick="getTimelineInfo()">⏰ Timeline Info</button>
             <button class="btn-primary" onclick="getDiagnostics()">🔍 Diagnostics EMQX</button>
+            <button class="btn-primary" onclick="getDetailedSimulatorHealth()">🏥 Santé Simulateur</button>
             <button class="btn-warning" onclick="resetTimeline()">🔄 Reset Timeline</button>
             <button class="btn-danger" onclick="clearLogs()">🧹 Vider Logs</button>
         </div>
@@ -483,11 +515,11 @@ export async function serveEmqxInterface(
         <div class="route-list">
             <div class="route-item">
                 <strong>GET /emqx-iot-simulator/health</strong><br>
-                Vérification de l'état du simulateur
+                Vérification de l'état du simulateur avec stats Pub/Sub
             </div>
             <div class="route-item">
                 <strong>POST /emqx-iot-simulator/start</strong><br>
-                Démarrer la simulation IoT avec configuration géographique
+                Démarrer la simulation IoT (EMQX ou Pub/Sub)
             </div>
             <div class="route-item">
                 <strong>POST /emqx-iot-simulator/stop</strong><br>
@@ -499,7 +531,7 @@ export async function serveEmqxInterface(
             </div>
             <div class="route-item">
                 <strong>POST /emqx-iot-simulator/test</strong><br>
-                Publier un message de test avec coordonnées
+                Publier un message de test (EMQX ou Pub/Sub)
             </div>
             <div class="route-item">
                 <strong>GET /emqx-iot-simulator/timeline-info</strong><br>
@@ -519,6 +551,9 @@ export async function serveEmqxInterface(
     </div>
 
     <script>
+        // Variables globales pour le mode de publication
+        let currentPublishMode = 'emqx';
+
         function addLog(message, type = 'info') {
             const logs = document.getElementById('logs');
             const timestamp = new Date().toLocaleTimeString();
@@ -527,7 +562,80 @@ export async function serveEmqxInterface(
             logs.scrollTop = logs.scrollHeight;
         }
 
-        // Fonction timeline info corrigée
+        // Fonction pour changer le mode de publication
+        function togglePublishMode() {
+            const modeSelect = document.getElementById('publishMode');
+            const currentMode = modeSelect.value;
+            
+            if (currentMode === 'emqx') {
+                modeSelect.value = 'pubsub';
+            } else {
+                modeSelect.value = 'emqx';
+            }
+            
+            updatePublishModeDisplay();
+        }
+
+        // Mise à jour de l'affichage selon le mode
+        function updatePublishModeDisplay() {
+            const modeSelect = document.getElementById('publishMode');
+            const mode = modeSelect.value;
+            const modeDescription = document.getElementById('modeDescription');
+            const topicInput = document.getElementById('pubsubTopic');
+            const topicDisplay = document.getElementById('topicDisplay');
+            
+            currentPublishMode = mode;
+            
+            if (mode === 'pubsub') {
+                modeDescription.innerHTML = \`
+                    <strong>☁️ Mode GCP Pub/Sub:</strong><br>
+                    Les données sont envoyées vers un topic Pub/Sub dans Google Cloud Platform.<br>
+                    Pas besoin de connexion EMQX. Format: SensorData avec payload.
+                \`;
+                topicInput.style.display = 'block';
+                topicDisplay.style.display = 'block';
+                
+                // Mettre à jour l'affichage du topic
+                updateTopicDisplay();
+            } else {
+                modeDescription.innerHTML = \`
+                    <strong>📡 Mode EMQX MQTT:</strong><br>
+                    Les données sont publiées via MQTT vers le broker EMQX configuré.<br>
+                    Nécessite une connexion EMQX active. Topic: 'data'.
+                \`;
+                topicInput.style.display = 'none';
+                topicDisplay.style.display = 'none';
+            }
+            
+            addLog(\`🔄 Mode changé vers: \${mode === 'pubsub' ? 'GCP Pub/Sub' : 'EMQX MQTT'}\`, 'info');
+        }
+
+        // Mise à jour de l'affichage du topic
+        function updateTopicDisplay() {
+            const topic = document.getElementById('pubsubTopic').value || 'sensor-data-topic';
+            document.getElementById('topicDisplay').textContent = \`Topic: \${topic}\`;
+        }
+
+        // Validation de la configuration de publication
+        function validatePublishConfig() {
+            const mode = document.getElementById('publishMode').value;
+            const topic = document.getElementById('pubsubTopic').value;
+            
+            if (mode === 'pubsub') {
+                if (!topic || topic.trim() === '') {
+                    addLog('❌ Topic Pub/Sub requis pour le mode Pub/Sub', 'error');
+                    return false;
+                }
+              
+            }
+            
+            addLog(\`✅ Configuration \${mode === 'pubsub' ? 'Pub/Sub' : 'EMQX'} validée\`, 'success');
+            if (mode === 'pubsub') {
+                addLog(\`   Topic: \${topic}\`, 'info');
+            }
+            return true;
+        }
+
         async function getTimelineInfo() {
             try {
                 const response = await fetch('/emqx-iot-simulator/timeline-info');
@@ -645,12 +753,14 @@ export async function serveEmqxInterface(
             const lng = parseFloat(document.getElementById('centerLng').value);
             const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
             const macAddresses = document.getElementById('macAddresses').value.split(',').map(mac => mac.trim()).filter(mac => mac.length > 0);
+            const mode = document.getElementById('publishMode').value;
             
             document.getElementById('configInfo').innerHTML = \`
                 <strong>Configuration actuelle:</strong><br>
                 Centre: \${lat.toFixed(6)}, \${lng.toFixed(6)}<br>
                 Zone: \${boundingBox}km × \${boundingBox}km<br>
-                Capteurs: \${macAddresses.length}
+                Capteurs: \${macAddresses.length}<br>
+                Mode: \${mode === 'pubsub' ? 'Pub/Sub' : 'EMQX'}
             \`;
         }
 
@@ -661,19 +771,24 @@ export async function serveEmqxInterface(
             const duration = parseInt(document.getElementById('durationMinutes').value);
             const macAddresses = document.getElementById('macAddresses').value.split(',').map(mac => mac.trim()).filter(mac => mac.length > 0);
             const debugMode = document.getElementById('debugMode').checked;
+            const publishMode = document.getElementById('publishMode').value;
+            const pubsubTopic = document.getElementById('pubsubTopic').value;
 
             addLog('📋 Configuration actuelle:', 'info');
             addLog(\`   Centre: \${lat.toFixed(6)}, \${lng.toFixed(6)}\`, 'info');
             addLog(\`   Zone: \${boundingBox}km × \${boundingBox}km (\${(boundingBox * boundingBox).toFixed(2)}km²)\`, 'info');
             addLog(\`   Durée: \${duration} minutes\`, 'info');
             addLog(\`   Capteurs: \${macAddresses.length} (\${macAddresses.join(', ')})\`, 'info');
-            addLog(\`   Mode: \${debugMode ? 'Debug (simulation)' : 'Production (MQTT)'}\`, 'info');
+            addLog(\`   Mode Debug: \${debugMode ? 'Oui' : 'Non'}\`, 'info');
+            addLog(\`   Publication: \${publishMode === 'pubsub' ? \`Pub/Sub (\${pubsubTopic})\` : 'EMQX MQTT'}\`, 'info');
         }
 
         // Event listeners pour mise à jour en temps réel
         document.getElementById('centerLat').addEventListener('input', updateDisplays);
         document.getElementById('centerLng').addEventListener('input', updateDisplays);
         document.getElementById('boundingBoxKm').addEventListener('input', updateDisplays);
+        document.getElementById('publishMode').addEventListener('change', updatePublishModeDisplay);
+        document.getElementById('pubsubTopic').addEventListener('input', updateTopicDisplay);
 
         async function refreshStats() {
             try {
@@ -747,6 +862,10 @@ export async function serveEmqxInterface(
             if (!validateConfiguration()) {
                 return;
             }
+            
+            if (!validatePublishConfig()) {
+                return;
+            }
 
             try {
                 const lat = parseFloat(document.getElementById('centerLat').value);
@@ -754,16 +873,21 @@ export async function serveEmqxInterface(
                 const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
                 const duration = parseInt(document.getElementById('durationMinutes').value);
                 const debugMode = document.getElementById('debugMode').checked;
+                const publishMode = document.getElementById('publishMode').value;
+                const pubsubTopic = document.getElementById('pubsubTopic').value || 'sensor-data-topic';
                 const macAddressesInput = document.getElementById('macAddresses').value;
                 const macAddresses = macAddressesInput
                     .split(',')
                     .map(mac => mac.trim())
                     .filter(mac => mac.length > 0);
                 
+                const usePubSub = publishMode === 'pubsub';
+                
                 addLog(\`🚀 Démarrage du simulateur pour \${duration} minute(s)...\`, 'info');
                 addLog(\`📍 Zone: (\${lat.toFixed(6)}, \${lng.toFixed(6)}) ±\${boundingBox}km\`, 'info');
                 addLog(\`🔧 MAC Addresses: \${macAddresses.join(', ')}\`, 'info');
-                addLog(\`🔧 Mode: \${debugMode ? 'Debug (simulation)' : 'Production (MQTT)'}\`, 'info');
+                addLog(\`🔧 Mode: \${debugMode ? 'Debug (simulation)' : 'Production'}\`, 'info');
+                addLog(\`📡 Publication: \${usePubSub ? \`Pub/Sub (\${pubsubTopic})\` : 'EMQX MQTT'}\`, 'info');
                 
                 const response = await fetch('/emqx-iot-simulator/start', {
                     method: 'POST',
@@ -775,7 +899,9 @@ export async function serveEmqxInterface(
                         boundingBoxKm: boundingBox,
                         macAddresses: macAddresses,
                         debugMode: debugMode,
-                        intervalMs: 1000
+                        intervalMs: 1000,
+                        usePubSub: usePubSub,
+                        pubsubTopic: pubsubTopic
                     })
                 });
 
@@ -783,6 +909,7 @@ export async function serveEmqxInterface(
                 
                 if (result.success) {
                     addLog(\`✅ Simulateur démarré avec succès (\${result.status.totalSensors} capteurs)\`, 'success');
+                    addLog(\`📡 Mode: \${result.message.includes('Pub/Sub') ? 'Pub/Sub' : 'EMQX'}\`, 'success');
                     refreshSimulatorStatus();
                 } else {
                     addLog(\`❌ Échec du démarrage: \${result.error}\`, 'error');
@@ -820,9 +947,12 @@ export async function serveEmqxInterface(
             const lat = parseFloat(document.getElementById('centerLat').value);
             const lng = parseFloat(document.getElementById('centerLng').value);
             const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+            const publishMode = document.getElementById('publishMode').value;
+            const pubsubTopic = document.getElementById('pubsubTopic').value || 'sensor-data-topic';
+            const usePubSub = publishMode === 'pubsub';
             
             try {
-                addLog('📨 Envoi d\\'un message de test...', 'info');
+                addLog(\`📨 Envoi d'un message de test via \${usePubSub ? 'Pub/Sub' : 'EMQX'}...\`, 'info');
                 
                 const response = await fetch('/emqx-iot-simulator/test', {
                     method: 'POST',
@@ -831,7 +961,9 @@ export async function serveEmqxInterface(
                         macAddress: '00:11:22:33:44:TEST',
                         centerLat: lat,
                         centerLng: lng,
-                        boundingBoxKm: boundingBox
+                        boundingBoxKm: boundingBox,
+                        usePubSub: usePubSub,
+                        pubsubTopic: pubsubTopic
                     })
                 });
 
@@ -840,6 +972,7 @@ export async function serveEmqxInterface(
                 if (result.success) {
                     addLog(\`✅ Message de test publié (MAC: \${result.data.mac})\`, 'success');
                     addLog(\`📍 Position: \${result.data.coord[0][0].toFixed(6)}, \${result.data.coord[0][1].toFixed(6)}\`, 'info');
+                    addLog(\`📡 Mode: \${result.mode || (usePubSub ? 'Pub/Sub' : 'EMQX')}\`, 'info');
                 } else {
                     addLog(\`❌ Échec du test: \${result.error}\`, 'error');
                 }
@@ -1029,11 +1162,54 @@ export async function serveEmqxInterface(
             }
         }
 
-        // Initialisation avec diagnostic auto
+        // Nouvelle fonction pour le health check détaillé du simulateur
+        async function getDetailedSimulatorHealth() {
+            try {
+                const response = await fetch('/emqx-iot-simulator/health');
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('🏥 === SANTÉ SIMULATEUR DÉTAILLÉE ===', 'info');
+                    addLog(\`   Service: \${result.service}\`, 'info');
+                    addLog(\`   Status: \${result.status}\`, 'info');
+                    addLog(\`   Running: \${result.running}\`, 'info');
+                    addLog(\`   Sensors: \${result.sensors}\`, 'info');
+                    addLog(\`   Timeline Active: \${result.timelineActive}\`, 'info');
+                    
+                    if (result.config) {
+                        addLog(\`   Mode: \${result.config.mode || 'EMQX'}\`, 'info');
+                        addLog(\`   Capteurs: \${result.config.sensorsCount}\`, 'info');
+                        addLog(\`   Zone: \${result.config.boundingBoxKm}km\`, 'info');
+                        if (result.config.pubsubTopic) {
+                            addLog(\`   Topic Pub/Sub: \${result.config.pubsubTopic}\`, 'info');
+                        }
+                    }
+                    
+                    if (result.stats) {
+                        addLog('📊 STATISTIQUES:', 'info');
+                        addLog(\`   Total Messages: \${result.stats.total.messages}\`, 'info');
+                        addLog(\`   Total Erreurs: \${result.stats.total.errors}\`, 'info');
+                        addLog(\`   Pub/Sub Messages: \${result.stats.pubsub.messages}\`, 'info');
+                        addLog(\`   Pub/Sub Erreurs: \${result.stats.pubsub.errors}\`, 'info');
+                        addLog(\`   EMQX Messages: \${result.stats.emqx.messages}\`, 'info');
+                        addLog(\`   EMQX Erreurs: \${result.stats.emqx.errors}\`, 'info');
+                    }
+                    
+                    addLog('🏥 === FIN SANTÉ SIMULATEUR ===', 'info');
+                } else {
+                    addLog(\`❌ Erreur santé simulateur: \${result.error}\`, 'error');
+                }
+            } catch (error) {
+                addLog(\`❌ Erreur lors du health check: \${error.message}\`, 'error');
+            }
+        }
+
+        // Initialisation
         document.addEventListener('DOMContentLoaded', () => {
-            addLog('🚀 Interface EMQX chargée', 'success');
+            addLog('🚀 Interface EMQX chargée avec support Pub/Sub', 'success');
             updateDisplays();
             updateConfigDisplay();
+            updatePublishModeDisplay(); // Nouvelle initialisation
             refreshStats();
             refreshSimulatorStatus();
             
@@ -1062,7 +1238,7 @@ export async function serveEmqxInterface(
 
     gcpLogger({
       fileLink: `${__filename}:${functionName}`,
-      message: 'EMQX interface served',
+      message: 'EMQX interface served with Pub/Sub support',
       payload: { userAgent: req.get('User-Agent') },
       severity: Severity.info,
     });
@@ -1075,128 +1251,5 @@ export async function serveEmqxInterface(
     });
 
     res.status(500).send("Erreur lors du chargement de l'interface EMQX");
-  }
-}
-
-/**
-/**
- * Test de connectivité réseau
- */
-async function testNetworkConnectivity(
-  broker: string,
-  port: number
-): Promise<any> {
-  return new Promise((resolve) => {
-    const startTime = Date.now();
-    const socket = new net.Socket();
-
-    socket.setTimeout(5000); // 5 secondes timeout
-
-    socket.on('connect', () => {
-      const latency = Date.now() - startTime;
-      socket.destroy();
-      resolve({
-        error: null,
-        latency,
-        reachable: true,
-      });
-    });
-
-    socket.on('error', (error) => {
-      resolve({
-        error: error.message,
-        latency: null,
-        reachable: false,
-      });
-    });
-
-    socket.on('timeout', () => {
-      socket.destroy();
-      resolve({
-        error: 'Connection timeout',
-        latency: null,
-        reachable: false,
-      });
-    });
-
-    try {
-      socket.connect(port, broker);
-    } catch (error) {
-      resolve({
-        error: error.message,
-        latency: null,
-        reachable: false,
-      });
-    }
-  });
-}
-
-/**
- * Diagnostics EMQX pour comprendre les déconnexions
- */
-export async function getEmqxDiagnostics(
-  req: Request,
-  res: Response
-): Promise<void> {
-  const functionName = 'getEmqxDiagnostics';
-
-  try {
-    const emqxService = EmqxClientService.getInstance();
-    const status = emqxService.getStatus();
-    const config = emqxService.getConfig();
-
-    // Test de connectivité réseau
-    const networkTest = await testNetworkConnectivity(
-      config.broker,
-      config.port
-    );
-
-    const fullDiagnostics = {
-      config: {
-        broker: config.broker,
-        connectTimeout: config.connectTimeout,
-        hasCredentials: !!config.username,
-        keepAlive: config.keepAlive,
-        port: config.port,
-        qos: config.qos,
-        reconnectPeriod: config.reconnectPeriod,
-      },
-
-      network: networkTest,
-      service: {
-        connecting: status.connecting,
-        error: status.error,
-        isSimulationRunning: status.isSimulationRunning,
-        lastConnected: status.lastConnected,
-        reconnectAttempts: status.reconnectAttempts,
-        status: status.connected ? 'connected' : 'disconnected',
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    gcpLogger({
-      fileLink: `${__filename}:${functionName}`,
-      message: 'EMQX diagnostics retrieved',
-      payload: fullDiagnostics,
-      severity: Severity.info,
-    });
-
-    res.status(200).json({
-      data: fullDiagnostics,
-      success: true,
-    });
-  } catch (error) {
-    gcpLogger({
-      fileLink: `${__filename}:${functionName}`,
-      message: 'Error retrieving EMQX diagnostics',
-      payload: { error: error.message },
-      severity: Severity.error,
-    });
-
-    res.status(500).json({
-      error: error.message,
-      success: false,
-      timestamp: new Date().toISOString(),
-    });
   }
 }

@@ -2,10 +2,14 @@ import { faker } from '@faker-js/faker';
 import { Severity } from '@google-cloud/logging';
 import * as turf from '@turf/turf';
 
-import { SensorPayload } from '../../../interfaces/data.interface';
+import { SensorData, SensorPayload } from '../../../interfaces/data.interface';
 import gcpLogger from '../../../utils/gcp/gcp-logger';
+import PubSubService from '../../simulator/pubsub-topic.service'; // Import du service Pub/Sub existant
 import EmqxClientService from '../client/emqx-client.service';
-import { SimulationConfig, SimulationStatus } from './emqx-simulator.interface';
+import {
+  EnhancedSimulationConfig,
+  EnhancedSimulationStatus,
+} from './emqx-simulator.interface';
 
 export class EmqxIoTSensorSimulatorService {
   // eslint-disable-next-line no-use-before-define
@@ -15,12 +19,20 @@ export class EmqxIoTSensorSimulatorService {
   private sensorIntervals: Map<string, NodeJS.Timeout> = new Map();
   private sensorLastSendTime: Map<string, number> = new Map();
   private globalStartTime = 0;
-  private currentConfig: SimulationConfig | null = null;
-  private status: SimulationStatus = {
+  private currentConfig: EnhancedSimulationConfig | null = null;
+  private status: EnhancedSimulationStatus = {
     elapsedSeconds: 0,
+    emqxErrors: 0,
+    emqxMessagesSent: 0,
     errors: 0,
+
     isRunning: false,
+
     messagesSent: 0,
+
+    pubsubErrors: 0,
+    // Nouveaux compteurs séparés
+    pubsubMessagesSent: 0,
     totalSensors: 0,
   };
 
@@ -108,11 +120,11 @@ export class EmqxIoTSensorSimulatorService {
     const vibrationData = [
       [
         faker.number.int({ max: 300000, min: 60000 }), // X
-        faker.number.float({ fractionDigits: 0.01, max: 60, min: 10 }), // Y
+        faker.number.float({ fractionDigits: 2, max: 60, min: 10 }), // Y
       ],
       [
         faker.number.int({ max: 300000, min: 60000 }), // X
-        faker.number.float({ fractionDigits: 0.01, max: 60, min: 10 }), // Y
+        faker.number.float({ fractionDigits: 2, max: 60, min: 10 }), // Y
       ],
     ];
 
@@ -122,13 +134,13 @@ export class EmqxIoTSensorSimulatorService {
     ];
 
     const accuracies = [
-      faker.number.float({ fractionDigits: 0.01, max: 2, min: 0 }),
-      faker.number.float({ fractionDigits: 0.01, max: 2, min: 0 }),
+      faker.number.float({ fractionDigits: 2, max: 2, min: 0 }),
+      faker.number.float({ fractionDigits: 2, max: 2, min: 0 }),
     ];
 
     const speeds = [
-      faker.number.float({ fractionDigits: 0.1, max: 6, min: 0 }),
-      faker.number.float({ fractionDigits: 0.1, max: 6, min: 0 }),
+      faker.number.float({ fractionDigits: 1, max: 6, min: 0 }),
+      faker.number.float({ fractionDigits: 1, max: 6, min: 0 }),
     ];
 
     return {
@@ -143,17 +155,14 @@ export class EmqxIoTSensorSimulatorService {
   }
 
   /**
-   * Publishes sensor data to EMQX or logs for debug
+   * Publishes sensor data to EMQX, Pub/Sub or logs for debug
    */
   private async publishSensorData(
     sensorData: SensorPayload,
-    debugMode = false
+    config: EnhancedSimulationConfig
   ): Promise<void> {
     try {
-      const topic = 'data';
-      const message = JSON.stringify(sensorData);
-
-      if (debugMode) {
+      if (config.debugMode) {
         // Mode debug : seulement logger
         gcpLogger({
           fileLink: __filename,
@@ -162,14 +171,15 @@ export class EmqxIoTSensorSimulatorService {
             coordinates: sensorData.coord,
             data: sensorData,
             mac: sensorData.mac,
-            messageSize: message.length,
             timestamp: sensorData.time,
-            topic,
+            usePubSub: config.usePubSub,
           },
           severity: Severity.info,
         });
         console.log(
-          `[DEBUG] MAC: ${sensorData.mac} - Would publish to ${topic}:`
+          `[DEBUG] MAC: ${sensorData.mac} - Would publish via ${
+            config.usePubSub ? 'Pub/Sub' : 'EMQX'
+          }:`
         );
         console.log(
           `  Coordinates: ${sensorData.coord[0][0].toFixed(
@@ -179,13 +189,56 @@ export class EmqxIoTSensorSimulatorService {
         console.log(
           `  Timestamp: ${new Date(sensorData.time * 1000).toISOString()}`
         );
+
+        this.status.messagesSent += 1;
+        return;
+      }
+
+      if (config.usePubSub) {
+        // Mode Pub/Sub : envoyer vers GCP Pub/Sub
+        const pubsubTopic = config.pubsubTopic || 'sensor-data-topic';
+
+        // Convertir SensorPayload en SensorData pour PubSub
+        const sensorDataForPubSub: SensorData = {
+          // Reconvertir en milliseconds
+          MACAddress: sensorData.mac,
+          payload: sensorData,
+          timestamp: sensorData.time * 1000,
+        };
+
+        const success = await PubSubService.publishToTopic(
+          pubsubTopic,
+          sensorDataForPubSub
+        );
+
+        if (success) {
+          this.status.pubsubMessagesSent += 1;
+          gcpLogger({
+            fileLink: __filename,
+            message: 'Sensor data published to Pub/Sub successfully',
+            payload: {
+              coordinates: sensorData.coord,
+              mac: sensorData.mac,
+              timestamp: sensorData.time,
+              topic: pubsubTopic,
+            },
+            severity: Severity.debug,
+          });
+        } else {
+          this.status.pubsubErrors += 1;
+          throw new Error('Failed to publish to Pub/Sub');
+        }
       } else {
         // Mode normal : publier sur EMQX
+        const topic = 'data';
+        const message = JSON.stringify(sensorData);
+
         await this.emqxService.publish(topic, message, 1);
+        this.status.emqxMessagesSent += 1;
 
         gcpLogger({
           fileLink: __filename,
-          message: 'Sensor data published successfully',
+          message: 'Sensor data published to EMQX successfully',
           payload: {
             coordinates: sensorData.coord,
             mac: sensorData.mac,
@@ -199,22 +252,28 @@ export class EmqxIoTSensorSimulatorService {
 
       this.status.messagesSent += 1;
     } catch (error) {
+      if (config.usePubSub) {
+        this.status.pubsubErrors += 1;
+      } else {
+        this.status.emqxErrors += 1;
+      }
       this.status.errors += 1;
 
       gcpLogger({
         fileLink: __filename,
-        message: debugMode
-          ? 'Debug mode logging error'
-          : 'Failed to publish sensor data',
+        message: `Failed to publish sensor data via ${
+          config.usePubSub ? 'Pub/Sub' : 'EMQX'
+        }`,
         payload: {
-          debugMode,
+          debugMode: config.debugMode,
           error: error.message,
           mac: sensorData.mac,
+          usePubSub: config.usePubSub,
         },
         severity: Severity.error,
       });
 
-      if (!debugMode) {
+      if (!config.debugMode) {
         throw error;
       }
     }
@@ -225,7 +284,7 @@ export class EmqxIoTSensorSimulatorService {
    */
   private startSensorSimulation(
     macAddress: string,
-    config: SimulationConfig
+    config: EnhancedSimulationConfig
   ): void {
     // Calculate initial delay to synchronize with global timeline
     const currentTime = Date.now();
@@ -245,6 +304,7 @@ export class EmqxIoTSensorSimulatorService {
         initialDelay,
         intervalMs: config.intervalMs,
         macAddress,
+        mode: config.usePubSub ? 'Pub/Sub' : 'EMQX',
         nextSendTime: new Date(nextSendTime).toISOString(),
       },
       severity: Severity.debug,
@@ -272,7 +332,7 @@ export class EmqxIoTSensorSimulatorService {
    */
   private async sendSensorMessage(
     macAddress: string,
-    config: SimulationConfig,
+    config: EnhancedSimulationConfig,
     forcedTimestamp?: number
   ): Promise<void> {
     try {
@@ -284,7 +344,7 @@ export class EmqxIoTSensorSimulatorService {
         forcedTimestamp
       );
 
-      await this.publishSensorData(sensorData, config.debugMode);
+      await this.publishSensorData(sensorData, config);
 
       // Update next send time in status
       const nextSend = new Date(sensorData.time * 1000 + config.intervalMs);
@@ -299,6 +359,7 @@ export class EmqxIoTSensorSimulatorService {
           debugMode: config.debugMode,
           error: error.message,
           mac: macAddress,
+          mode: config.usePubSub ? 'Pub/Sub' : 'EMQX',
         },
         severity: Severity.error,
       });
@@ -308,7 +369,9 @@ export class EmqxIoTSensorSimulatorService {
   /**
    * Starts the complete simulation for all sensors with synchronized timing
    */
-  public async startSimulation(config: SimulationConfig): Promise<void> {
+  public async startSimulation(
+    config: EnhancedSimulationConfig
+  ): Promise<void> {
     if (this.status.isRunning) {
       throw new Error('Simulation is already running');
     }
@@ -321,17 +384,33 @@ export class EmqxIoTSensorSimulatorService {
       );
     }
 
-    // Verify EMQX connection if not in debug mode
+    // Verify connection if not in debug mode
     if (!config.debugMode) {
-      const emqxStatus = this.emqxService.getStatus();
-      if (!emqxStatus.connected) {
-        try {
-          await this.emqxService.connect();
-        } catch (connectError) {
-          throw new Error(
-            'EMQX is not connected and failed to reconnect. Enable debug mode or fix EMQX connection.'
-          );
+      if (config.usePubSub) {
+        // Pour Pub/Sub, pas besoin de vérification spéciale
+        gcpLogger({
+          fileLink: __filename,
+          message: 'Using Pub/Sub mode for sensor data publishing',
+          payload: {
+            topic: config.pubsubTopic || 'sensor-data-topic',
+          },
+          severity: Severity.info,
+        });
+      } else {
+        // Vérifier EMQX
+        const emqxStatus = this.emqxService.getStatus();
+        if (!emqxStatus.connected) {
+          try {
+            await this.emqxService.connect();
+          } catch (connectError) {
+            throw new Error(
+              'EMQX is not connected and failed to reconnect. Enable debug mode, use Pub/Sub mode, or fix EMQX connection.'
+            );
+          }
         }
+
+        // Informer EMQX qu'une simulation commence
+        this.emqxService.setSimulationRunning(true);
       }
     }
 
@@ -339,7 +418,6 @@ export class EmqxIoTSensorSimulatorService {
     this.currentConfig = config;
 
     // Set global start time for synchronization
-    // If this is a restart, maintain timeline continuity
     const now = Date.now();
     if (this.globalStartTime === 0) {
       // First start - align to the next second boundary
@@ -356,11 +434,22 @@ export class EmqxIoTSensorSimulatorService {
     // Initialize simulation status
     this.status = {
       elapsedSeconds: 0,
+      emqxErrors: this.status.emqxErrors,
+      emqxMessagesSent: this.status.emqxMessagesSent,
       endTime: new Date(Date.now() + config.durationMinutes * 60 * 1000),
-      errors: this.status.errors, // Keep previous count
+
+      errors: this.status.errors,
+      // Keep previous count
       isRunning: true,
-      messagesSent: this.status.messagesSent, // Keep previous count
+
+      messagesSent: this.status.messagesSent,
+
+      // Keep previous count
       nextSendTime: new Date(this.globalStartTime + config.intervalMs),
+
+      pubsubErrors: this.status.pubsubErrors,
+      // Reset specific counters
+      pubsubMessagesSent: this.status.pubsubMessagesSent,
       startTime: new Date(),
       totalSensors: config.macAddresses.length,
     };
@@ -375,6 +464,8 @@ export class EmqxIoTSensorSimulatorService {
         durationMinutes: config.durationMinutes,
         globalStartTime: new Date(this.globalStartTime).toISOString(),
         intervalMs: config.intervalMs,
+        mode: config.usePubSub ? 'Pub/Sub' : 'EMQX',
+        pubsubTopic: config.pubsubTopic || 'sensor-data-topic',
         synchronizedStart: true,
         totalSensors: config.macAddresses.length,
       },
@@ -403,6 +494,9 @@ export class EmqxIoTSensorSimulatorService {
         payload: {
           debugMode: config.debugMode,
           duration: config.durationMinutes,
+          emqxMessages: this.status.emqxMessagesSent,
+          mode: config.usePubSub ? 'Pub/Sub' : 'EMQX',
+          pubsubMessages: this.status.pubsubMessagesSent,
           sensorsCount: config.macAddresses.length,
           timelineContinuity: 'maintained',
           totalErrors: this.status.errors,
@@ -440,15 +534,27 @@ export class EmqxIoTSensorSimulatorService {
     this.status.isRunning = false;
     this.status.nextSendTime = undefined;
 
+    // Informer EMQX que la simulation est terminée (seulement si utilisé)
+    if (
+      this.currentConfig &&
+      !this.currentConfig.debugMode &&
+      !this.currentConfig.usePubSub
+    ) {
+      this.emqxService.setSimulationRunning(false);
+    }
+
     gcpLogger({
       fileLink: __filename,
       message: 'IoT sensor simulation stopped with timeline preservation',
       payload: {
         elapsedSeconds: this.status.elapsedSeconds,
+        emqxMessages: this.status.emqxMessagesSent,
         errors: this.status.errors,
         globalTimelinePreserved: true,
         messagesSent: this.status.messagesSent,
+        mode: this.currentConfig?.usePubSub ? 'Pub/Sub' : 'EMQX',
         nextRestartWillBeSynchronized: true,
+        pubsubMessages: this.status.pubsubMessagesSent,
       },
       severity: Severity.info,
     });
@@ -457,14 +563,14 @@ export class EmqxIoTSensorSimulatorService {
   /**
    * Gets the current simulation status
    */
-  public getStatus(): SimulationStatus {
+  public getStatus(): EnhancedSimulationStatus {
     return { ...this.status };
   }
 
   /**
    * Gets the current configuration
    */
-  public getCurrentConfig(): SimulationConfig | null {
+  public getCurrentConfig(): EnhancedSimulationConfig | null {
     return this.currentConfig ? { ...this.currentConfig } : null;
   }
 
@@ -475,7 +581,9 @@ export class EmqxIoTSensorSimulatorService {
     macAddress: string,
     centerLat = 48.8566,
     centerLng = 2.3522,
-    boundingBoxKm = 0.1
+    boundingBoxKm = 0.2,
+    usePubSub = false,
+    pubsubTopic = 'sensor-data-topic'
   ): Promise<SensorPayload> {
     // Use current time for test messages
     const sensorData = this.generateSensorData(
@@ -486,7 +594,19 @@ export class EmqxIoTSensorSimulatorService {
       Date.now()
     );
 
-    await this.publishSensorData(sensorData, false);
+    const testConfig: EnhancedSimulationConfig = {
+      boundingBoxKm,
+      centerLat,
+      centerLng,
+      debugMode: false,
+      durationMinutes: 1,
+      intervalMs: 1000,
+      macAddresses: [macAddress],
+      pubsubTopic,
+      usePubSub,
+    };
+
+    await this.publishSensorData(sensorData, testConfig);
 
     return sensorData;
   }
@@ -503,6 +623,10 @@ export class EmqxIoTSensorSimulatorService {
     this.sensorLastSendTime.clear();
     this.status.messagesSent = 0;
     this.status.errors = 0;
+    this.status.pubsubMessagesSent = 0;
+    this.status.emqxMessagesSent = 0;
+    this.status.pubsubErrors = 0;
+    this.status.emqxErrors = 0;
     this.currentConfig = null;
 
     gcpLogger({
@@ -537,7 +661,7 @@ export class EmqxIoTSensorSimulatorService {
    * Validates simulation configuration
    */
   // eslint-disable-next-line class-methods-use-this
-  public validateConfig(config: SimulationConfig): string[] {
+  public validateConfig(config: EnhancedSimulationConfig): string[] {
     const errors: string[] = [];
 
     if (!config.macAddresses || config.macAddresses.length === 0) {

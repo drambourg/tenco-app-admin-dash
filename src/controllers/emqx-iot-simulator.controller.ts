@@ -1,7 +1,7 @@
 import { Severity } from '@google-cloud/logging';
 import { Request, Response } from 'express';
 
-import { SimulationConfig } from '../services/emqx/iot-simulator/emqx-simulator.interface';
+import { EnhancedSimulationConfig } from '../services/emqx/iot-simulator/emqx-simulator.interface';
 import EmqxIoTSensorSimulatorService from '../services/emqx/iot-simulator/emqx-simulator.service';
 import gcpLogger from '../utils/gcp/gcp-logger';
 
@@ -13,7 +13,7 @@ export class EmqxIoTSimulatorController {
   }
 
   /**
-   * Start simulation with enhanced geographic configuration
+   * Start simulation with enhanced geographic configuration and Pub/Sub option
    */
   public startEmqxSimulatorSimulation = async (
     req: Request,
@@ -28,6 +28,8 @@ export class EmqxIoTSimulatorController {
         durationMinutes = 1,
         intervalMs = 1000,
         macAddresses,
+        pubsubTopic = 'sensor-data-topic', // Nouvelle option
+        usePubSub = false, // Topic par défaut
       } = req.body;
 
       // Validation des champs requis
@@ -67,7 +69,7 @@ export class EmqxIoTSimulatorController {
         return;
       }
 
-      const config: SimulationConfig = {
+      const config: EnhancedSimulationConfig = {
         boundingBoxKm: parseFloat(boundingBoxKm),
         centerLat: parseFloat(centerLat),
         centerLng: parseFloat(centerLng),
@@ -75,6 +77,8 @@ export class EmqxIoTSimulatorController {
         durationMinutes: parseInt(durationMinutes, 10),
         intervalMs: parseInt(intervalMs, 10),
         macAddresses: macAddresses.map((mac: string) => mac.trim()),
+        pubsubTopic: String(pubsubTopic),
+        usePubSub: Boolean(usePubSub),
       };
 
       // Validation de la configuration
@@ -96,6 +100,7 @@ export class EmqxIoTSimulatorController {
         message: 'EMQX IoT simulation started with geographic configuration',
         payload: {
           config,
+          mode: config.usePubSub ? 'Pub/Sub' : 'EMQX',
           status,
         },
         severity: Severity.info,
@@ -103,7 +108,9 @@ export class EmqxIoTSimulatorController {
 
       res.json({
         config,
-        message: 'Simulation started successfully',
+        message: `Simulation started successfully in ${
+          config.usePubSub ? 'Pub/Sub' : 'EMQX'
+        } mode`,
         status,
         success: true,
       });
@@ -176,7 +183,7 @@ export class EmqxIoTSimulatorController {
   };
 
   /**
-   * Test single message with geographic parameters
+   * Test single message with geographic parameters and mode selection
    */
   public publishEmqxSimulatorTestMessage = async (
     req: Request,
@@ -184,22 +191,29 @@ export class EmqxIoTSimulatorController {
   ): Promise<void> => {
     try {
       const {
-        boundingBoxKm = 0.1,
+        boundingBoxKm = 0.2,
         centerLat = 48.8566,
         centerLng = 2.3522,
         macAddress = '00:11:22:33:44:TEST',
+        pubsubTopic = 'sensor-data-topic',
+        usePubSub = false,
       } = req.body;
 
       const sensorData = await this.simulatorService.publishTestMessage(
         macAddress,
         parseFloat(centerLat),
         parseFloat(centerLng),
-        parseFloat(boundingBoxKm)
+        parseFloat(boundingBoxKm),
+        Boolean(usePubSub),
+        String(pubsubTopic)
       );
 
       res.json({
         data: sensorData,
-        message: 'Test message published successfully',
+        message: `Test message published successfully via ${
+          usePubSub ? 'Pub/Sub' : 'EMQX'
+        }`,
+        mode: usePubSub ? 'Pub/Sub' : 'EMQX',
         success: true,
       });
     } catch (error) {
@@ -257,7 +271,7 @@ export class EmqxIoTSimulatorController {
   };
 
   /**
-   * Health check with enhanced information
+   * Health check with enhanced information including Pub/Sub stats
    */
   public healthEmqxSimulatorCheck = async (
     req: Request,
@@ -275,6 +289,8 @@ export class EmqxIoTSimulatorController {
               centerLat: currentConfig.centerLat,
               centerLng: currentConfig.centerLng,
               debugMode: currentConfig.debugMode,
+              mode: currentConfig.usePubSub ? 'Pub/Sub' : 'EMQX',
+              pubsubTopic: currentConfig.pubsubTopic,
               sensorsCount: currentConfig.macAddresses.length,
             }
           : null,
@@ -283,8 +299,26 @@ export class EmqxIoTSimulatorController {
         running: status.isRunning,
         sensors: status.totalSensors,
         service: 'EMQX IoT Simulator',
+        // Statistiques détaillées par mode
+        stats: {
+          emqx: {
+            errors: status.emqxErrors || 0,
+            messages: status.emqxMessagesSent || 0,
+          },
+          pubsub: {
+            errors: status.pubsubErrors || 0,
+            messages: status.pubsubMessagesSent || 0,
+          },
+          total: {
+            errors: status.errors,
+            messages: status.messagesSent,
+          },
+        },
+
         status: 'healthy',
+
         success: true,
+
         timelineActive: timeline.isTimelineActive,
       });
     } catch (error) {
