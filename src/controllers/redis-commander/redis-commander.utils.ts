@@ -24,11 +24,29 @@ function getRedisCommanderHTML(): string {
             color: white;
             padding: 1rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         .header h1 {
             font-size: 1.8rem;
             font-weight: 300;
+            text-align: center;
+        }
+
+        .home-link {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            text-decoration: none;
+            font-size: 1.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .home-link:hover {
+            transform: translateY(-50%) scale(1.2);
+            color: #f0f0f0;
         }
 
         .container {
@@ -297,6 +315,7 @@ function getRedisCommanderHTML(): string {
 </head>
 <body>
     <div class="header">
+        <a href="/" class="home-link" title="Retour à l'accueil">🏠</a>
         <h1>🗃️ Redis Commander</h1>
     </div>
 
@@ -822,7 +841,7 @@ function getRedisCommanderHTML(): string {
         setInterval(refreshStats, 30000);
     </script>
 </body>
-</html>\\`;
+</html>`;
 }
 
 // eslint-disable-next-line import/prefer-default-export

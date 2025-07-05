@@ -296,9 +296,11 @@ export async function serveEmqxInterface(
     <title>EMQX Service Manager</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: #f8f9fa; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; text-align: center; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; text-align: center; position: relative; }
         .header h1 { margin: 0; font-size: 2.5rem; }
         .header p { margin: 10px 0 0 0; opacity: 0.9; }
+        .home-link { position: absolute; left: 30px; top: 50%; transform: translateY(-50%); color: white; text-decoration: none; font-size: 2rem; transition: transform 0.3s ease; }
+        .home-link:hover { transform: translateY(-50%) scale(1.2); color: #f0f0f0; }
         .status { padding: 15px; border-radius: 8px; margin: 15px 0; font-weight: bold; }
         .connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
@@ -315,7 +317,15 @@ export async function serveEmqxInterface(
         .btn-warning { background: #ffc107; color: #212529; }
         .btn-warning:hover { background: #e0a800; transform: translateY(-2px); }
         .logs { background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568; border-radius: 6px; padding: 20px; height: 350px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; resize: none; width: 100%; box-sizing: border-box; }
-          input, textarea, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        input, textarea, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 10px 0; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 0.9rem; color: #666; font-weight: 500; margin-bottom: 5px; }
+        .coordinates-section { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea; }
+        .coordinates-section h4 { margin-top: 0; color: #667eea; }
+        .presets { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+        .preset-btn { padding: 8px 16px; background: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .preset-btn:hover { background: #bbdefb; }
         .route-section { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin: 20px 0; }
         .route-section h4 { color: #856404; margin-top: 0; }
         .route-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
@@ -325,12 +335,14 @@ export async function serveEmqxInterface(
         .simulator-running { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
         .simulator-stopped { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .timeline-info { background: #e2e3e5; border: 1px solid #d6d8db; border-radius: 6px; padding: 15px; margin: 10px 0; }
+        .value-display { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 5px 0; }
     </style>
 </head>
 <body>
     <div class="header">
+        <a href="/" class="home-link" title="Retour à l'accueil">🏠</a>
         <h1>🔌 EMQX Service Manager</h1>
-        <p>Gestion du broker MQTT et simulateur IoT</p>
+        <p>Gestion du broker MQTT et simulateur IoT avec configuration géographique</p>
     </div>
     
     <div id="status" class="status disconnected">
@@ -359,6 +371,68 @@ export async function serveEmqxInterface(
             <button class="btn-success" onclick="testPublish()">📡 Publier Message</button>
         </div>
 
+        <!-- Configuration Géographique -->
+        <div class="card">
+            <h3>🌍 Configuration Géographique</h3>
+            
+            <!-- Presets de lieux -->
+            <div class="coordinates-section">
+                <h4>📍 Presets de Lieux</h4>
+                <div class="presets">
+                    <div class="preset-btn" onclick="setLocation(48.8566, 2.3522, 0.5)">🗼 Paris</div>
+                    <div class="preset-btn" onclick="setLocation(45.764, 4.8357, 0.3)">🏛️ Lyon</div>
+                    <div class="preset-btn" onclick="setLocation(43.2965, 5.3698, 0.4)">🏖️ Marseille</div>
+                    <div class="preset-btn" onclick="setLocation(50.6292, 3.0573, 0.2)">🏭 Lille</div>
+                    <div class="preset-btn" onclick="setLocation(44.8378, -0.5792, 0.3)">🍷 Bordeaux</div>
+                    <div class="preset-btn" onclick="setLocation(47.2184, -1.5536, 0.25)">🏰 Nantes</div>
+                </div>
+            </div>
+
+            <!-- Coordonnées du centre -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="centerLat">Latitude Centre</label>
+                    <input type="number" id="centerLat" step="0.000001" value="48.8566" placeholder="48.8566 (Paris)">
+                    <div class="value-display" id="latDisplay">Paris: 48.8566°N</div>
+                </div>
+                <div class="form-group">
+                    <label for="centerLng">Longitude Centre</label>
+                    <input type="number" id="centerLng" step="0.000001" value="2.3522" placeholder="2.3522 (Paris)">
+                    <div class="value-display" id="lngDisplay">Paris: 2.3522°E</div>
+                </div>
+            </div>
+
+            <!-- Configuration de la zone -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="boundingBoxKm">Taille Zone (km)</label>
+                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.5" placeholder="0.5">
+                    <div class="value-display" id="boundingDisplay">Zone: 0.5km × 0.5km</div>
+                </div>
+                <div class="form-group">
+                    <label for="durationMinutes">Durée (minutes)</label>
+                    <input type="number" id="durationMinutes" min="1" max="60" value="2" placeholder="2">
+                </div>
+            </div>
+
+            <!-- Adresses MAC -->
+            <div class="form-group">
+                <label for="macAddresses">Adresses MAC (séparées par des virgules)</label>
+                <input type="text" id="macAddresses" placeholder="00:11:22:33:44:55,00:11:22:33:44:56" value="00:11:22:33:44:55,00:11:22:33:44:56,00:11:22:33:44:57">
+            </div>
+
+            <!-- Mode Debug -->
+            <div style="margin: 15px 0;">
+                <label style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="debugMode" style="width: auto;">
+                    <span>Mode Debug (affichage uniquement, pas d'envoi MQTT)</span>
+                </label>
+            </div>
+
+            <button class="btn-primary" onclick="getCurrentLocation()">📍 Utiliser Position GPS</button>
+            <button class="btn-primary" onclick="validateConfiguration()">✅ Valider Config</button>
+        </div>
+
         <!-- Simulateur IoT -->
         <div class="card">
             <h3>🤖 Simulateur IoT EMQX</h3>
@@ -368,15 +442,10 @@ export async function serveEmqxInterface(
             <div id="timelineInfo" class="timeline-info">
                 Chargement des informations...
             </div>
-            <input type="number" id="durationMinutes" placeholder="Durée (minutes)" value="1" min="1" max="60">
-                <input type="text" id="macAddresses" placeholder="MAC Addresses (ex: 9999,33333,12222)" value="00:11:22:33:44:55,00:11:22:33:44:56,00:11:22:33:44:57">
-
-                <div style="margin: 10px 0;">
-                <label>
-                    <input type="checkbox" id="debugMode" style="width: auto; margin-right: 8px;">
-                    Mode Debug (affichage uniquement, pas d'envoi MQTT)
-                </label>
+            <div id="configInfo" class="timeline-info">
+                Configuration: Non définie
             </div>
+            
             <button class="btn-success" onclick="startSimulator()">▶️ Démarrer</button>
             <button class="btn-danger" onclick="stopSimulator()">⏹️ Arrêter</button>
             <button class="btn-warning" onclick="testSingleMessage()">📨 Test Simple</button>
@@ -386,7 +455,7 @@ export async function serveEmqxInterface(
         <!-- Contrôles Avancés -->
         <div class="card">
             <h3>🔧 Contrôles Avancés</h3>
-            <button class="btn-primary" onclick="getMacAddresses()">📋 MAC Addresses</button>
+            <button class="btn-primary" onclick="showCurrentConfig()">📋 Config Actuelle</button>
             <button class="btn-primary" onclick="getTimelineInfo()">⏰ Timeline Info</button>
             <button class="btn-warning" onclick="resetTimeline()">🔄 Reset Timeline</button>
             <button class="btn-danger" onclick="clearLogs()">🧹 Vider Logs</button>
@@ -403,7 +472,7 @@ export async function serveEmqxInterface(
             </div>
             <div class="route-item">
                 <strong>POST /emqx-iot-simulator/start</strong><br>
-                Démarrer la simulation IoT
+                Démarrer la simulation IoT avec configuration géographique
             </div>
             <div class="route-item">
                 <strong>POST /emqx-iot-simulator/stop</strong><br>
@@ -415,11 +484,7 @@ export async function serveEmqxInterface(
             </div>
             <div class="route-item">
                 <strong>POST /emqx-iot-simulator/test</strong><br>
-                Publier un message de test
-            </div>
-            <div class="route-item">
-                <strong>GET /emqx-iot-simulator/mac-addresses</strong><br>
-                Liste des adresses MAC disponibles
+                Publier un message de test avec coordonnées
             </div>
             <div class="route-item">
                 <strong>GET /emqx-iot-simulator/timeline-info</strong><br>
@@ -440,12 +505,117 @@ export async function serveEmqxInterface(
 
     <script>
         function addLog(message, type = 'info') {
-          const logs = document.getElementById('logs');
-          const timestamp = new Date().toLocaleTimeString();
-          const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
-          logs.value += \`[\${timestamp}] \${icon} \${message}\\n\`;
-          logs.scrollTop = logs.scrollHeight;
-      }
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logs.value += \`[\${timestamp}] \${icon} \${message}\\n\`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        // Configuration géographique
+        function setLocation(lat, lng, boundingBox) {
+            document.getElementById('centerLat').value = lat;
+            document.getElementById('centerLng').value = lng;
+            document.getElementById('boundingBoxKm').value = boundingBox;
+            updateDisplays();
+            addLog(\`📍 Position définie: \${lat}, \${lng} (zone: \${boundingBox}km)\`, 'info');
+        }
+
+        function updateDisplays() {
+            const lat = parseFloat(document.getElementById('centerLat').value);
+            const lng = parseFloat(document.getElementById('centerLng').value);
+            const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+            
+            document.getElementById('latDisplay').textContent = \`Latitude: \${lat.toFixed(6)}°\${lat >= 0 ? 'N' : 'S'}\`;
+            document.getElementById('lngDisplay').textContent = \`Longitude: \${lng.toFixed(6)}°\${lng >= 0 ? 'E' : 'W'}\`;
+            document.getElementById('boundingDisplay').textContent = \`Zone: \${boundingBox}km × \${boundingBox}km (≈\${(boundingBox * boundingBox).toFixed(2)}km²)\`;
+        }
+
+        function getCurrentLocation() {
+            if (!navigator.geolocation) {
+                addLog('Géolocalisation non supportée par ce navigateur', 'error');
+                return;
+            }
+
+            addLog('Demande de géolocalisation...', 'info');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    setLocation(lat, lng, 0.2);
+                    addLog(\`📍 Position GPS obtenue: \${lat.toFixed(6)}, \${lng.toFixed(6)}\`, 'success');
+                },
+                (error) => {
+                    addLog(\`❌ Erreur géolocalisation: \${error.message}\`, 'error');
+                }
+            );
+        }
+
+        function validateConfiguration() {
+            const lat = parseFloat(document.getElementById('centerLat').value);
+            const lng = parseFloat(document.getElementById('centerLng').value);
+            const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+            const macAddresses = document.getElementById('macAddresses').value.split(',').map(mac => mac.trim()).filter(mac => mac.length > 0);
+
+            const errors = [];
+            
+            if (isNaN(lat) || lat < -90 || lat > 90) {
+                errors.push('Latitude invalide (doit être entre -90 et 90)');
+            }
+            if (isNaN(lng) || lng < -180 || lng > 180) {
+                errors.push('Longitude invalide (doit être entre -180 et 180)');
+            }
+            if (isNaN(boundingBox) || boundingBox <= 0 || boundingBox > 10) {
+                errors.push('Taille de zone invalide (doit être entre 0.1 et 10 km)');
+            }
+            if (macAddresses.length === 0) {
+                errors.push('Au moins une adresse MAC requise');
+            }
+
+            if (errors.length > 0) {
+                errors.forEach(error => addLog(\`❌ \${error}\`, 'error'));
+                return false;
+            }
+
+            addLog(\`✅ Configuration valide: \${macAddresses.length} capteurs à (\${lat.toFixed(6)}, \${lng.toFixed(6)}) zone \${boundingBox}km\`, 'success');
+            updateConfigDisplay();
+            return true;
+        }
+
+        function updateConfigDisplay() {
+            const lat = parseFloat(document.getElementById('centerLat').value);
+            const lng = parseFloat(document.getElementById('centerLng').value);
+            const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+            const macAddresses = document.getElementById('macAddresses').value.split(',').map(mac => mac.trim()).filter(mac => mac.length > 0);
+            
+            document.getElementById('configInfo').innerHTML = \`
+                <strong>Configuration actuelle:</strong><br>
+                Centre: \${lat.toFixed(6)}, \${lng.toFixed(6)}<br>
+                Zone: \${boundingBox}km × \${boundingBox}km<br>
+                Capteurs: \${macAddresses.length}
+            \`;
+        }
+
+        function showCurrentConfig() {
+            const lat = parseFloat(document.getElementById('centerLat').value);
+            const lng = parseFloat(document.getElementById('centerLng').value);
+            const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+            const duration = parseInt(document.getElementById('durationMinutes').value);
+            const macAddresses = document.getElementById('macAddresses').value.split(',').map(mac => mac.trim()).filter(mac => mac.length > 0);
+            const debugMode = document.getElementById('debugMode').checked;
+
+            addLog('📋 Configuration actuelle:', 'info');
+            addLog(\`   Centre: \${lat.toFixed(6)}, \${lng.toFixed(6)}\`, 'info');
+            addLog(\`   Zone: \${boundingBox}km × \${boundingBox}km (\${(boundingBox * boundingBox).toFixed(2)}km²)\`, 'info');
+            addLog(\`   Durée: \${duration} minutes\`, 'info');
+            addLog(\`   Capteurs: \${macAddresses.length} (\${macAddresses.join(', ')})\`, 'info');
+            addLog(\`   Mode: \${debugMode ? 'Debug (simulation)' : 'Production (MQTT)'}\`, 'info');
+        }
+
+        // Event listeners pour mise à jour en temps réel
+        document.getElementById('centerLat').addEventListener('input', updateDisplays);
+        document.getElementById('centerLng').addEventListener('input', updateDisplays);
+        document.getElementById('boundingBoxKm').addEventListener('input', updateDisplays);
 
         async function refreshStats() {
             try {
@@ -516,51 +686,60 @@ export async function serveEmqxInterface(
         }
 
         async function startSimulator() {
+            if (!validateConfiguration()) {
+                return;
+            }
+
             try {
-                const duration = document.getElementById('durationMinutes').value;
-                 const debugMode = document.getElementById('debugMode').checked;
+                const lat = parseFloat(document.getElementById('centerLat').value);
+                const lng = parseFloat(document.getElementById('centerLng').value);
+                const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+                const duration = parseInt(document.getElementById('durationMinutes').value);
+                const debugMode = document.getElementById('debugMode').checked;
                 const macAddressesInput = document.getElementById('macAddresses').value;
-                  const macAddresses = macAddressesInput
+                const macAddresses = macAddressesInput
                     .split(',')
                     .map(mac => mac.trim())
                     .filter(mac => mac.length > 0);
                 
-                if (macAddresses.length === 0) {
-                    addLog('Veuillez saisir au moins une adresse MAC', 'error');
-                    return;
-                }
+                addLog(\`🚀 Démarrage du simulateur pour \${duration} minute(s)...\`, 'info');
+                addLog(\`📍 Zone: (\${lat.toFixed(6)}, \${lng.toFixed(6)}) ±\${boundingBox}km\`, 'info');
+                addLog(\`🔧 MAC Addresses: \${macAddresses.join(', ')}\`, 'info');
+                addLog(\`🔧 Mode: \${debugMode ? 'Debug (simulation)' : 'Production (MQTT)'}\`, 'info');
                 
-                addLog(\`Démarrage du simulateur pour \${duration} minute(s)...\`, 'info');
-                addLog(\`MAC Addresses: \${macAddresses.join(', ')}\`, 'info');
                 const response = await fetch('/emqx-iot-simulator/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        durationMinutes: parseInt(duration),
-                        centerLat: 48.8566,
-                        centerLng: 2.3522,
-                        boundingBoxKm: 0.2,
+                        durationMinutes: duration,
+                        centerLat: lat,
+                        centerLng: lng,
+                        boundingBoxKm: boundingBox,
                         macAddresses: macAddresses,
-                        debugMode: debugMode
+                        debugMode: debugMode,
+                        intervalMs: 1000
                     })
                 });
 
                 const result = await response.json();
                 
                 if (result.success) {
-                    addLog(\`Simulateur démarré avec succès (\${result.status.totalSensors} capteurs)\`, 'success');
+                    addLog(\`✅ Simulateur démarré avec succès (\${result.status.totalSensors} capteurs)\`, 'success');
                     refreshSimulatorStatus();
                 } else {
-                    addLog(\`Échec du démarrage: \${result.error}\`, 'error');
+                    addLog(\`❌ Échec du démarrage: \${result.error}\`, 'error');
+                    if (result.details) {
+                        result.details.forEach(detail => addLog(\`   • \${detail}\`, 'error'));
+                    }
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
 
         async function stopSimulator() {
             try {
-                addLog('Arrêt du simulateur...', 'info');
+                addLog('⏹️ Arrêt du simulateur...', 'info');
                 
                 const response = await fetch('/emqx-iot-simulator/stop', {
                     method: 'POST'
@@ -569,40 +748,45 @@ export async function serveEmqxInterface(
                 const result = await response.json();
                 
                 if (result.success) {
-                    addLog('Simulateur arrêté avec succès', 'success');
+                    addLog('✅ Simulateur arrêté avec succès', 'success');
                     refreshSimulatorStatus();
                 } else {
-                    addLog(\`Échec de l'arrêt: \${result.error}\`, 'error');
+                    addLog(\`❌ Échec de l'arrêt: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
 
         async function testSingleMessage() {
+            const lat = parseFloat(document.getElementById('centerLat').value);
+            const lng = parseFloat(document.getElementById('centerLng').value);
+            const boundingBox = parseFloat(document.getElementById('boundingBoxKm').value);
+            
             try {
-                addLog('Envoi d\\'un message de test...', 'info');
+                addLog('📨 Envoi d\\'un message de test...', 'info');
                 
                 const response = await fetch('/emqx-iot-simulator/test', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        macAddresses: ['00:11:22:33:44:55'],
-                        centerLat: 48.8566,
-                        centerLng: 2.3522,
-                        boundingBoxKm: 0.2
+                        macAddress: '00:11:22:33:44:TEST',
+                        centerLat: lat,
+                        centerLng: lng,
+                        boundingBoxKm: boundingBox
                     })
                 });
 
                 const result = await response.json();
                 
                 if (result.success) {
-                    addLog(\`Message de test publié (MAC: \${result.data.mac})\`, 'success');
+                    addLog(\`✅ Message de test publié (MAC: \${result.data.mac})\`, 'success');
+                    addLog(\`📍 Position: \${result.data.coord[0][0].toFixed(6)}, \${result.data.coord[0][1].toFixed(6)}\`, 'info');
                 } else {
-                    addLog(\`Échec du test: \${result.error}\`, 'error');
+                    addLog(\`❌ Échec du test: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
 
@@ -626,18 +810,18 @@ export async function serveEmqxInterface(
                 const result = await response.json();
                 
                 if (result.success) {
-                    addLog(\`Message publié sur \${result.topic} (QoS \${result.qos}, \${result.duration}ms)\`, 'success');
+                    addLog(\`✅ Message publié sur \${result.topic} (QoS \${result.qos}, \${result.duration}ms)\`, 'success');
                 } else {
-                    addLog(\`Échec publication: \${result.error}\`, 'error');
+                    addLog(\`❌ Échec publication: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
 
         async function testReconnect() {
             try {
-                addLog('Test de reconnexion EMQX...', 'info');
+                addLog('🔄 Test de reconnexion EMQX...', 'info');
                 
                 const response = await fetch('/emqx/test/reconnect', {
                     method: 'POST'
@@ -646,16 +830,15 @@ export async function serveEmqxInterface(
                 const result = await response.json();
                 
                 if (result.success) {
-                    addLog(\`Reconnexion EMQX réussie (\${result.reconnectDuration}ms)\`, 'success');
+                    addLog(\`✅ Reconnexion EMQX réussie (\${result.reconnectDuration}ms)\`, 'success');
                     refreshStats();
                 } else {
-                    addLog(\`Échec reconnexion EMQX: \${result.error}\`, 'error');
+                    addLog(\`❌ Échec reconnexion EMQX: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
-
 
         async function getTimelineInfo() {
             try {
@@ -664,18 +847,18 @@ export async function serveEmqxInterface(
                 
                 if (result.success) {
                     const timeline = result.timeline;
-                    addLog(\`Timeline - Active: \${timeline.isTimelineActive}, Start: \${timeline.globalStartTime ? new Date(timeline.globalStartTime).toLocaleString() : 'Non défini'}\`, 'info');
+                    addLog(\`⏰ Timeline - Active: \${timeline.isTimelineActive}, Start: \${timeline.globalStartTime ? new Date(timeline.globalStartTime).toLocaleString() : 'Non défini'}\`, 'info');
                 } else {
-                    addLog(\`Erreur timeline: \${result.error}\`, 'error');
+                    addLog(\`❌ Erreur timeline: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
 
         async function resetTimeline() {
             try {
-                addLog('Réinitialisation de la timeline...', 'warning');
+                addLog('🔄 Réinitialisation de la timeline...', 'warning');
                 
                 const response = await fetch('/emqx-iot-simulator/reset-timeline', {
                     method: 'POST'
@@ -684,24 +867,26 @@ export async function serveEmqxInterface(
                 const result = await response.json();
                 
                 if (result.success) {
-                    addLog('Timeline réinitialisée avec succès', 'success');
+                    addLog('✅ Timeline réinitialisée avec succès', 'success');
                     refreshSimulatorStatus();
                 } else {
-                    addLog(\`Échec reset timeline: \${result.error}\`, 'error');
+                    addLog(\`❌ Échec reset timeline: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                addLog(\`Erreur: \${error.message}\`, 'error');
+                addLog(\`❌ Erreur: \${error.message}\`, 'error');
             }
         }
 
         function clearLogs() {
-          document.getElementById('logs').value = '';
-          addLog('Logs vidés', 'info');
-      }
+            document.getElementById('logs').value = '';
+            addLog('🧹 Logs vidés', 'info');
+        }
 
         // Initialisation
         document.addEventListener('DOMContentLoaded', () => {
-            addLog('Interface EMQX chargée', 'success');
+            addLog('🚀 Interface EMQX chargée', 'success');
+            updateDisplays();
+            updateConfigDisplay();
             refreshStats();
             refreshSimulatorStatus();
             

@@ -249,6 +249,8 @@ export class BullBoardController {
             align-items: center;
             min-height: 100vh;
         }
+            .home-link { position: absolute; left: 30px; top: 50%; transform: translateY(-50%); color: white; text-decoration: none; font-size: 2rem; transition: transform 0.3s ease; }
+.home-link:hover { transform: translateY(-50%) scale(1.2); color: #f0f0f0; }
         .container {
             background: white;
             border-radius: 12px;
@@ -297,6 +299,7 @@ export class BullBoardController {
 </head>
 <body>
     <div class="container">
+        <a href="/" class="home-link" title="Retour à l'accueil">🏠</a>
         <div class="icon">📊</div>
         <h1 class="title">Bull Board Unavailable</h1>
         <p class="message">
