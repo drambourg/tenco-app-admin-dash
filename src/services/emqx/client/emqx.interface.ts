@@ -8,6 +8,9 @@ export interface EmqxConfig {
   keepAlive?: number;
   connectTimeout?: number;
   reconnectPeriod?: number;
+  protocolVersion?: number;
+  useTls?: boolean;
+  useWebSocket?: boolean;
 }
 
 export interface EmqxConnectionStatus {

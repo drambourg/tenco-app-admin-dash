@@ -333,9 +333,6 @@ export class EmqxIoTSensorSimulatorService {
           );
         }
       }
-
-      // Informer EMQX qu'une simulation commence
-      this.emqxService.setSimulationRunning(true);
     }
 
     // Store current configuration
@@ -442,11 +439,6 @@ export class EmqxIoTSensorSimulatorService {
 
     this.status.isRunning = false;
     this.status.nextSendTime = undefined;
-
-    // Informer EMQX que la simulation est terminée
-    if (this.currentConfig && !this.currentConfig.debugMode) {
-      this.emqxService.setSimulationRunning(false);
-    }
 
     gcpLogger({
       fileLink: __filename,

@@ -410,8 +410,8 @@ export async function serveEmqxInterface(
             <div class="form-row">
                 <div class="form-group">
                     <label for="boundingBoxKm">Taille Zone (km)</label>
-                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.5" placeholder="0.5">
-                    <div class="value-display" id="boundingDisplay">Zone: 0.5km × 0.5km</div>
+                    <input type="number" id="boundingBoxKm" step="0.1" min="0.1" max="10" value="0.2" placeholder="0.2">
+                    <div class="value-display" id="boundingDisplay">Zone: 0.2km × 0.2km</div>
                 </div>
                 <div class="form-group">
                     <label for="durationMinutes">Durée (minutes)</label>
@@ -1079,56 +1079,6 @@ export async function serveEmqxInterface(
 }
 
 /**
- * Génère des recommandations basées sur les diagnostics
- */
-function generateRecommendations(diagnostics: any, networkTest: any): string[] {
-  const recommendations = [];
-
-  if (!networkTest.reachable) {
-    recommendations.push(
-      "❌ Le broker EMQX n'est pas accessible réseau - vérifier la connectivité"
-    );
-  }
-
-  if (diagnostics.disconnectCount > 5) {
-    recommendations.push(
-      '⚠️ Trop de déconnexions - vérifier la stabilité du broker'
-    );
-  }
-
-  if (diagnostics.averageConnectionDuration < 30000) {
-    recommendations.push(
-      '⏱️ Connexions très courtes - augmenter le keep-alive'
-    );
-  }
-
-  if (diagnostics.lastDisconnectReason.includes('error')) {
-    recommendations.push(
-      '🔧 Erreurs de connexion - vérifier les credentials EMQX'
-    );
-  }
-
-  if (diagnostics.currentConfig?.keepAlive < 60) {
-    recommendations.push(
-      '📊 Keep-alive trop court - recommandé: minimum 60 secondes'
-    );
-  }
-
-  if (networkTest.latency > 1000) {
-    recommendations.push(
-      '🌐 Latence réseau élevée - considérer un broker plus proche'
-    );
-  }
-
-  if (recommendations.length === 0) {
-    recommendations.push(
-      '✅ Configuration semble correcte - monitorer les logs'
-    );
-  }
-
-  return recommendations;
-}
-
 /**
  * Test de connectivité réseau
  */
@@ -1194,7 +1144,6 @@ export async function getEmqxDiagnostics(
     const emqxService = EmqxClientService.getInstance();
     const status = emqxService.getStatus();
     const config = emqxService.getConfig();
-    const diagnostics = emqxService.getDiagnostics();
 
     // Test de connectivité réseau
     const networkTest = await testNetworkConnectivity(
@@ -1212,9 +1161,8 @@ export async function getEmqxDiagnostics(
         qos: config.qos,
         reconnectPeriod: config.reconnectPeriod,
       },
-      diagnostics,
+
       network: networkTest,
-      recommendations: generateRecommendations(diagnostics, networkTest),
       service: {
         connecting: status.connecting,
         error: status.error,
