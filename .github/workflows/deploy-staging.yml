@@ -15,13 +15,13 @@ env:
   GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME_STAGING || 'admin-app-tenco-staging' }}
   SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT_STAGING }}
 
-  MEMORY: ${{ vars.MEMORY_STAGING || '512Mi' }}
-  CPU: ${{ vars.CPU_STAGING || '1' }}
+  MEMORY: ${{ vars.MEMORY_STAGING || '1Gi' }}
+  CPU: ${{ vars.CPU_STAGING || '2' }}
   MAX_INSTANCES: ${{ vars.MAX_INSTANCES_STAGING || '1' }}
   MIN_INSTANCES: ${{ vars.MIN_INSTANCES_STAGING || '1' }}
   PORT: ${{ vars.PORT_STAGING || '8080' }}
-  CONCURRENCY: ${{ vars.CONCURRENCY_STAGING || '100' }}
-  TIMEOUT: ${{ vars.TIMEOUT_STAGING || '600' }}
+  CONCURRENCY: ${{ vars.CONCURRENCY_STAGING || '1000' }}
+  TIMEOUT: ${{ vars.TIMEOUT_STAGING || '3600' }}
 
   SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL_STAGING}}
  
@@ -165,6 +165,37 @@ jobs:
           echo "🔗 Service URL: ${{ steps.deploy.outputs.url }}"
           echo ""
           echo "📝 Note: The service can now access private resources in the tenco-staging-vpc network"
+
+      - name: Verify Enhanced Configuration 🔍
+        run: |
+          echo "✅ Cloud Run service deployed with enhanced configuration:"
+          echo ""
+          echo "🚀 PERFORMANCE:"
+          echo "   💾 Memory: $MEMORY"
+          echo "   🖥️  CPU: $CPU cores"
+          echo "   ⏱️  Timeout: ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
+          echo "   🔄 Concurrency: $CONCURRENCY requests"
+          echo "   📊 Instances: $MIN_INSTANCES-$MAX_INSTANCES"
+          echo ""
+          echo "🌐 NETWORK:"
+          echo "   🌐 VPC Connector: $VPC_CONNECTOR"
+          echo "   🚪 VPC Egress: $VPC_EGRESS"
+          echo "   🗃️ Redis: $REDIS_HOST:$REDIS_PORT"
+          echo ""
+          echo "📡 EMQX CONFIGURATION:"
+          echo "   🔌 Broker: $EMQX_BROKER:$EMQX_PORT"
+          echo "   ⏱️  Keep-Alive: ${EMQX_KEEP_ALIVE}s ($(($EMQX_KEEP_ALIVE / 60)) minutes)"
+          echo "   🔗 Connect Timeout: ${EMQX_CONNECT_TIMEOUT}ms"
+          echo "   🔄 Reconnect Period: ${EMQX_RECONNECT_PERIOD}ms"
+          echo "   🎯 Long Simulation: $EMQX_LONG_SIMULATION"
+          echo ""
+          echo "🔗 Service URL: ${{ steps.deploy.outputs.url }}"
+          echo ""
+          echo "📝 NOTES:"
+          echo "   ✅ Optimized for long-running IoT simulations"
+          echo "   ✅ EMQX connections can persist up to $(($EMQX_KEEP_ALIVE / 60)) minutes"
+          echo "   ✅ Cloud Run requests can run up to $(($TIMEOUT / 60)) minutes"
+          echo "   ✅ Gen2 execution environment with no CPU throttling"
 
       - name: Show Cloud Run Output 👀
         run: echo ${{ steps.deploy.outputs.url }}

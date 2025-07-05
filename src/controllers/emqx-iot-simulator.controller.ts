@@ -13,14 +13,22 @@ export class EmqxIoTSimulatorController {
   }
 
   /**
-   * Start simulation
+   * Start simulation with enhanced geographic configuration
    */
   public startEmqxSimulatorSimulation = async (
     req: Request,
     res: Response
   ): Promise<void> => {
     try {
-      const { boundingBoxKm, centerLat, centerLng, macAddresses } = req.body;
+      const {
+        boundingBoxKm,
+        centerLat,
+        centerLng,
+        debugMode = false,
+        durationMinutes = 1,
+        intervalMs = 1000,
+        macAddresses,
+      } = req.body;
 
       // Validation des champs requis
       if (
@@ -60,14 +68,16 @@ export class EmqxIoTSimulatorController {
       }
 
       const config: SimulationConfig = {
-        boundingBoxKm,
-        centerLat,
-        centerLng,
-        durationMinutes: req.body.durationMinutes || 1,
-        intervalMs: req.body.intervalMs || 1000,
-        macAddresses,
+        boundingBoxKm: parseFloat(boundingBoxKm),
+        centerLat: parseFloat(centerLat),
+        centerLng: parseFloat(centerLng),
+        debugMode: Boolean(debugMode),
+        durationMinutes: parseInt(durationMinutes, 10),
+        intervalMs: parseInt(intervalMs, 10),
+        macAddresses: macAddresses.map((mac: string) => mac.trim()),
       };
 
+      // Validation de la configuration
       const validationErrors = this.simulatorService.validateConfig(config);
       if (validationErrors.length > 0) {
         res.status(400).json({
@@ -83,12 +93,17 @@ export class EmqxIoTSimulatorController {
 
       gcpLogger({
         fileLink: __filename,
-        message: 'EMQX IoT simulation started',
+        message: 'EMQX IoT simulation started with geographic configuration',
+        payload: {
+          config,
+          status,
+        },
         severity: Severity.info,
       });
 
       res.json({
-        message: 'Simulation started',
+        config,
+        message: 'Simulation started successfully',
         status,
         success: true,
       });
@@ -96,6 +111,10 @@ export class EmqxIoTSimulatorController {
       gcpLogger({
         fileLink: __filename,
         message: `Failed to start simulation: ${error.message}`,
+        payload: {
+          body: req.body,
+          error: error.message,
+        },
         severity: Severity.error,
       });
 
@@ -118,7 +137,7 @@ export class EmqxIoTSimulatorController {
       const status = this.simulatorService.getStatus();
 
       res.json({
-        message: 'Simulation stopped',
+        message: 'Simulation stopped successfully',
         status,
         success: true,
       });
@@ -131,7 +150,7 @@ export class EmqxIoTSimulatorController {
   };
 
   /**
-   * Get status
+   * Get status with current configuration
    */
   public getEmqxSimulatorStatus = async (
     req: Request,
@@ -140,8 +159,10 @@ export class EmqxIoTSimulatorController {
     try {
       const status = this.simulatorService.getStatus();
       const timeline = this.simulatorService.getTimelineInfo();
+      const currentConfig = this.simulatorService.getCurrentConfig();
 
       res.json({
+        config: currentConfig,
         status,
         success: true,
         timeline,
@@ -155,28 +176,30 @@ export class EmqxIoTSimulatorController {
   };
 
   /**
-   * Test single message
+   * Test single message with geographic parameters
    */
   public publishEmqxSimulatorTestMessage = async (
     req: Request,
     res: Response
   ): Promise<void> => {
     try {
-      const macAddress = req.body.macAddress || '00:11:22:33:44:55';
-      const centerLat = req.body.centerLat || 48.8566;
-      const centerLng = req.body.centerLng || 2.3522;
-      const boundingBoxKm = req.body.boundingBoxKm || 0.2;
+      const {
+        boundingBoxKm = 0.2,
+        centerLat = 48.8566,
+        centerLng = 2.3522,
+        macAddress = '00:11:22:33:44:TEST',
+      } = req.body;
 
       const sensorData = await this.simulatorService.publishTestMessage(
         macAddress,
-        centerLat,
-        centerLng,
-        boundingBoxKm
+        parseFloat(centerLat),
+        parseFloat(centerLng),
+        parseFloat(boundingBoxKm)
       );
 
       res.json({
         data: sensorData,
-        message: 'Test message published',
+        message: 'Test message published successfully',
         success: true,
       });
     } catch (error) {
@@ -222,7 +245,7 @@ export class EmqxIoTSimulatorController {
       this.simulatorService.resetTimeline();
 
       res.json({
-        message: 'Timeline reset',
+        message: 'Timeline reset successfully',
         success: true,
       });
     } catch (error) {
@@ -234,7 +257,7 @@ export class EmqxIoTSimulatorController {
   };
 
   /**
-   * Health check
+   * Health check with enhanced information
    */
   public healthEmqxSimulatorCheck = async (
     req: Request,
@@ -243,8 +266,18 @@ export class EmqxIoTSimulatorController {
     try {
       const status = this.simulatorService.getStatus();
       const timeline = this.simulatorService.getTimelineInfo();
+      const currentConfig = this.simulatorService.getCurrentConfig();
 
       res.json({
+        config: currentConfig
+          ? {
+              boundingBoxKm: currentConfig.boundingBoxKm,
+              centerLat: currentConfig.centerLat,
+              centerLng: currentConfig.centerLng,
+              debugMode: currentConfig.debugMode,
+              sensorsCount: currentConfig.macAddresses.length,
+            }
+          : null,
         errors: status.errors,
         messagesSent: status.messagesSent,
         running: status.isRunning,

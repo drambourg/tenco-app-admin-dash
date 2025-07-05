@@ -15,6 +15,7 @@ export class EmqxIoTSensorSimulatorService {
   private sensorIntervals: Map<string, NodeJS.Timeout> = new Map();
   private sensorLastSendTime: Map<string, number> = new Map();
   private globalStartTime = 0;
+  private currentConfig: SimulationConfig | null = null;
   private status: SimulationStatus = {
     elapsedSeconds: 0,
     errors: 0,
@@ -136,7 +137,7 @@ export class EmqxIoTSensorSimulatorService {
       mac: macAddress,
       speed: speeds,
       temp: temperatures,
-      time: timestamp / 1000,
+      time: timestamp / 1000, // Convert to seconds
       vib: vibrationData,
     };
   }
@@ -158,11 +159,10 @@ export class EmqxIoTSensorSimulatorService {
           fileLink: __filename,
           message: '[DEBUG MODE] Sensor data would be published',
           payload: {
+            coordinates: sensorData.coord,
             data: sensorData,
             mac: sensorData.mac,
             messageSize: message.length,
-            sensorData,
-            sensorDataJSON: message,
             timestamp: sensorData.time,
             topic,
           },
@@ -171,7 +171,14 @@ export class EmqxIoTSensorSimulatorService {
         console.log(
           `[DEBUG] MAC: ${sensorData.mac} - Would publish to ${topic}:`
         );
-        console.log(JSON.stringify(sensorData, null, 2));
+        console.log(
+          `  Coordinates: ${sensorData.coord[0][0].toFixed(
+            6
+          )}, ${sensorData.coord[0][1].toFixed(6)}`
+        );
+        console.log(
+          `  Timestamp: ${new Date(sensorData.time * 1000).toISOString()}`
+        );
       } else {
         // Mode normal : publier sur EMQX
         await this.emqxService.publish(topic, message, 1);
@@ -180,9 +187,9 @@ export class EmqxIoTSensorSimulatorService {
           fileLink: __filename,
           message: 'Sensor data published successfully',
           payload: {
+            coordinates: sensorData.coord,
             mac: sensorData.mac,
             messageSize: message.length,
-            sensorDataJSON: message,
             timestamp: sensorData.time,
             topic,
           },
@@ -231,6 +238,18 @@ export class EmqxIoTSensorSimulatorService {
     // Initialize last send time for this sensor
     this.sensorLastSendTime.set(macAddress, this.globalStartTime);
 
+    gcpLogger({
+      fileLink: __filename,
+      message: `Starting sensor simulation for ${macAddress}`,
+      payload: {
+        initialDelay,
+        intervalMs: config.intervalMs,
+        macAddress,
+        nextSendTime: new Date(nextSendTime).toISOString(),
+      },
+      severity: Severity.debug,
+    });
+
     // Set timeout for the first synchronized send
     const initialTimeout = setTimeout(() => {
       // Send first synchronized message
@@ -268,7 +287,7 @@ export class EmqxIoTSensorSimulatorService {
       await this.publishSensorData(sensorData, config.debugMode);
 
       // Update next send time in status
-      const nextSend = new Date(sensorData.time + config.intervalMs);
+      const nextSend = new Date(sensorData.time * 1000 + config.intervalMs);
       if (!this.status.nextSendTime || nextSend < this.status.nextSendTime) {
         this.status.nextSendTime = nextSend;
       }
@@ -294,11 +313,33 @@ export class EmqxIoTSensorSimulatorService {
       throw new Error('Simulation is already running');
     }
 
-    // Verify EMQX connection
-    const emqxStatus = this.emqxService.getStatus();
-    if (!emqxStatus.connected) {
-      throw new Error('EMQX is not connected');
+    // Validate configuration
+    const validationErrors = this.validateConfig(config);
+    if (validationErrors.length > 0) {
+      throw new Error(
+        `Configuration validation failed: ${validationErrors.join(', ')}`
+      );
     }
+
+    // Verify EMQX connection if not in debug mode
+    if (!config.debugMode) {
+      const emqxStatus = this.emqxService.getStatus();
+      if (!emqxStatus.connected) {
+        try {
+          await this.emqxService.connect();
+        } catch (connectError) {
+          throw new Error(
+            'EMQX is not connected and failed to reconnect. Enable debug mode or fix EMQX connection.'
+          );
+        }
+      }
+
+      // Informer EMQX qu'une simulation commence
+      this.emqxService.setSimulationRunning(true);
+    }
+
+    // Store current configuration
+    this.currentConfig = config;
 
     // Set global start time for synchronization
     // If this is a restart, maintain timeline continuity
@@ -317,20 +358,12 @@ export class EmqxIoTSensorSimulatorService {
 
     // Initialize simulation status
     this.status = {
-      // Keep previous count
       elapsedSeconds: 0,
-
       endTime: new Date(Date.now() + config.durationMinutes * 60 * 1000),
-
-      // Keep previous count
-      errors: this.status.errors,
-
+      errors: this.status.errors, // Keep previous count
       isRunning: true,
-
-      messagesSent: this.status.messagesSent,
-
+      messagesSent: this.status.messagesSent, // Keep previous count
       nextSendTime: new Date(this.globalStartTime + config.intervalMs),
-
       startTime: new Date(),
       totalSensors: config.macAddresses.length,
     };
@@ -341,6 +374,7 @@ export class EmqxIoTSensorSimulatorService {
       payload: {
         boundingBoxKm: config.boundingBoxKm,
         centerCoordinates: [config.centerLat, config.centerLng],
+        debugMode: config.debugMode,
         durationMinutes: config.durationMinutes,
         globalStartTime: new Date(this.globalStartTime).toISOString(),
         intervalMs: config.intervalMs,
@@ -370,6 +404,7 @@ export class EmqxIoTSensorSimulatorService {
         fileLink: __filename,
         message: 'IoT sensor simulation completed',
         payload: {
+          debugMode: config.debugMode,
           duration: config.durationMinutes,
           sensorsCount: config.macAddresses.length,
           timelineContinuity: 'maintained',
@@ -408,6 +443,11 @@ export class EmqxIoTSensorSimulatorService {
     this.status.isRunning = false;
     this.status.nextSendTime = undefined;
 
+    // Informer EMQX que la simulation est terminée
+    if (this.currentConfig && !this.currentConfig.debugMode) {
+      this.emqxService.setSimulationRunning(false);
+    }
+
     gcpLogger({
       fileLink: __filename,
       message: 'IoT sensor simulation stopped with timeline preservation',
@@ -430,6 +470,13 @@ export class EmqxIoTSensorSimulatorService {
   }
 
   /**
+   * Gets the current configuration
+   */
+  public getCurrentConfig(): SimulationConfig | null {
+    return this.currentConfig ? { ...this.currentConfig } : null;
+  }
+
+  /**
    * Publishes a single test message for a sensor
    */
   public async publishTestMessage(
@@ -447,7 +494,7 @@ export class EmqxIoTSensorSimulatorService {
       Date.now()
     );
 
-    await this.publishSensorData(sensorData);
+    await this.publishSensorData(sensorData, false);
 
     return sensorData;
   }
@@ -464,6 +511,7 @@ export class EmqxIoTSensorSimulatorService {
     this.sensorLastSendTime.clear();
     this.status.messagesSent = 0;
     this.status.errors = 0;
+    this.currentConfig = null;
 
     gcpLogger({
       fileLink: __filename,
@@ -504,28 +552,42 @@ export class EmqxIoTSensorSimulatorService {
       errors.push('MAC addresses array is required and cannot be empty');
     }
 
-    if (!config.centerLat || config.centerLat < -90 || config.centerLat > 90) {
+    if (
+      config.centerLat === undefined ||
+      config.centerLat === null ||
+      config.centerLat < -90 ||
+      config.centerLat > 90
+    ) {
       errors.push('Center latitude must be between -90 and 90');
     }
 
     if (
-      !config.centerLng ||
+      config.centerLng === undefined ||
+      config.centerLng === null ||
       config.centerLng < -180 ||
       config.centerLng > 180
     ) {
       errors.push('Center longitude must be between -180 and 180');
     }
 
-    if (!config.boundingBoxKm || config.boundingBoxKm <= 0) {
-      errors.push('Bounding box size must be greater than 0');
+    if (
+      !config.boundingBoxKm ||
+      config.boundingBoxKm <= 0 ||
+      config.boundingBoxKm > 10
+    ) {
+      errors.push('Bounding box size must be between 0.1 and 10 km');
     }
 
     if (!config.intervalMs || config.intervalMs < 100) {
       errors.push('Interval must be at least 100ms');
     }
 
-    if (!config.durationMinutes || config.durationMinutes <= 0) {
-      errors.push('Duration must be greater than 0 minutes');
+    if (
+      !config.durationMinutes ||
+      config.durationMinutes <= 0 ||
+      config.durationMinutes > 60
+    ) {
+      errors.push('Duration must be between 1 and 60 minutes');
     }
 
     // Check for duplicate MAC addresses

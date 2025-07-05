@@ -16,4 +16,5 @@ export interface EmqxConnectionStatus {
   error?: string;
   lastConnected?: Date;
   reconnectAttempts: number;
+  isSimulationRunning?: boolean;
 }
