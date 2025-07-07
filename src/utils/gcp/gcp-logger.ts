@@ -168,8 +168,10 @@ function gcpLogger({
     }
 
     // For critical errors, also print to console
-    if (severity === Severity.critical || severity === Severity.error) {
-      console.error(`[${severity}] ${message}`);
+    if (process.env.NODE_ENV === 'development') {
+      if (severity === Severity.critical || severity === Severity.error) {
+        console.error(`[${severity}] ${message}`);
+      }
     }
   } catch (logError) {
     // In case of an error in logging itself, don't block the application
