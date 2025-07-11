@@ -45,6 +45,7 @@ export const API_ROUTES = {
   REDIS_COMMANDER_PATTERNS: '/redis-commander/patterns',
   REDIS_COMMANDER_STATS: '/redis-commander/stats',
   REDIS_COMMANDER_UI: '/redis-commander',
+  REDIS_COMMANDER_KEY_UPDATE: '/redis-commander/key/:key',
 };
 
 export const SERVER = {

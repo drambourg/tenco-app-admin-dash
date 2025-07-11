@@ -5,6 +5,9 @@ import { AppError, GENERIC_ERRORS } from '../utils/error';
 const validateEnv = () => {
   try {
     cleanEnv(process.env, {
+      ADMIN_PASSWORD: str(),
+      ADMIN_USERNAME: str(),
+
       EMQX_BROKER: str(),
       EMQX_CONNECT_TIMEOUT: port({ default: 10000 }),
       EMQX_KEEP_ALIVE: port({ default: 180 }),

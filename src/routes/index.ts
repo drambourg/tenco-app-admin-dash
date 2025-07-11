@@ -35,6 +35,7 @@ import {
   getStats,
   getValue,
   serveInterface,
+  setValue,
 } from '../controllers/redis-commander.controller';
 import { API_ROUTES } from './routes.const';
 
@@ -99,6 +100,7 @@ router.get(API_ROUTES.REDIS_COMMANDER_KEYS, getKeys);
 router.get(API_ROUTES.REDIS_COMMANDER_PATTERNS, getKeyPatterns);
 router.get(API_ROUTES.REDIS_COMMANDER_KEY_VALUE, getValue);
 router.delete(API_ROUTES.REDIS_COMMANDER_KEY_DELETE, deleteKey);
+router.put(API_ROUTES.REDIS_COMMANDER_KEY_UPDATE, setValue);
 router.delete(
   API_ROUTES.REDIS_COMMANDER_DELETE_KEY_PATTERN,
   deleteKeysByPattern

@@ -5,6 +5,7 @@ import express from 'express';
 
 import routes from '../routes';
 import { SERVER } from '../routes/routes.const';
+import authMiddleware from '../services/utils/auth-middleware';
 
 /**
  * Configure Express application for Cloud Run
@@ -45,6 +46,8 @@ export function createApp(): express.Application {
       timestamp: new Date().toISOString(),
     });
   });
+
+  app.use(authMiddleware);
 
   // Application routes
   app.use(routes);

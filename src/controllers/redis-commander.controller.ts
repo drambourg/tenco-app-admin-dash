@@ -224,6 +224,81 @@ export class RedisCommanderController {
   };
 
   /**
+   * Set value of a specific key (nouvelle fonction)
+   */
+  public setValue = async (req: Request, res: Response): Promise<void> => {
+    const functionName = 'setValue';
+
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      const { database = 0 } = req.query;
+
+      if (!key) {
+        const response: RedisCommanderResponse = {
+          error: 'Key parameter is required',
+          message: 'Missing key parameter',
+          success: false,
+          timestamp: new Date().toISOString(),
+        };
+
+        res.status(400).json(response);
+        return;
+      }
+
+      if (value === undefined || value === null) {
+        const response: RedisCommanderResponse = {
+          error: 'Value is required',
+          message: 'Missing value in request body',
+          success: false,
+          timestamp: new Date().toISOString(),
+        };
+
+        res.status(400).json(response);
+        return;
+      }
+
+      const success = await this.redisCommanderService.setValue(
+        key,
+        value,
+        parseInt(database as string, 10)
+      );
+
+      const response: RedisCommanderResponse = {
+        data: { updated: success },
+        message: `Key ${key} updated successfully`,
+        success,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: `Key value updated successfully: ${key}`,
+        payload: { database, key, success },
+        severity: Severity.info,
+      });
+
+      res.status(200).json(response);
+    } catch (error) {
+      const response: RedisCommanderResponse = {
+        error: error.message,
+        message: 'Failed to update value',
+        success: false,
+        timestamp: new Date().toISOString(),
+      };
+
+      gcpLogger({
+        fileLink: `${__filename}:${functionName}`,
+        message: 'Error updating Redis value',
+        payload: { error: error.message, key: req.params.key },
+        severity: Severity.error,
+      });
+
+      res.status(500).json(response);
+    }
+  };
+
+  /**
    * Get key patterns analysis
    */
   public getKeyPatterns = async (
@@ -588,4 +663,5 @@ export const {
   getStats,
   getValue,
   serveInterface,
+  setValue,
 } = redisCommanderController;

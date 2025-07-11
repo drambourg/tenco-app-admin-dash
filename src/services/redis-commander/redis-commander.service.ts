@@ -96,6 +96,40 @@ export class RedisCommanderService {
   }
 
   /**
+   * Set value of a specific key (nouvelle fonction)
+   */
+  public async setValue(
+    key: string,
+    value: any,
+    database = 0
+  ): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      await client.select(database);
+
+      // Detect the type and set accordingly
+      if (typeof value === 'string') {
+        await client.set(key, value);
+      } else if (typeof value === 'object' && value !== null) {
+        // Store objects as JSON strings
+        await client.set(key, JSON.stringify(value));
+      } else {
+        // For other types, convert to string
+        await client.set(key, String(value));
+      }
+
+      return true;
+    } catch (error) {
+      gcpLogger({
+        fileLink: `redis-commander.service.ts:setValue`,
+        message: 'Error setting Redis value',
+        payload: { database, error: error.message, key },
+        severity: Severity.error,
+      });
+      throw new Error(`Failed to set value: ${error.message}`);
+    }
+  }
+  /**
    * Get value of a specific key
    */
   public async getValue(key: string, database = 0): Promise<RedisValue> {

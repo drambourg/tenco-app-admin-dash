@@ -28,6 +28,7 @@
     "Datapoint",
     "Datapoints",
     "date-fns",
+    "doesn",
     "emqx",
     "emqxcloud",
     "envalid",

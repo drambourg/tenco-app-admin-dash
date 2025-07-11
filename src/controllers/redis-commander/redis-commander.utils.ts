@@ -1,4 +1,6 @@
-// HTML content for the interface (embedded to avoid file serving complexity)
+// src/controllers/redis-commander/redis-commander.utils.ts
+// Remplacer complètement la fonction getRedisCommanderHTML par celle-ci :
+
 function getRedisCommanderHTML(): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -110,14 +112,14 @@ function getRedisCommanderHTML(): string {
             font-weight: 500;
         }
 
-        input, select, button {
+        input, select, button, textarea {
             padding: 0.75rem;
             border: 1px solid #ddd;
             border-radius: 4px;
             font-size: 0.9rem;
         }
 
-        input:focus, select:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
@@ -222,6 +224,31 @@ function getRedisCommanderHTML(): string {
             overflow-x: auto;
             max-height: 500px;
             overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+
+        .value-editor {
+            width: 100%;
+            min-height: 200px;
+            font-family: 'Courier New', monospace;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .editor-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .edit-mode {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 1rem;
         }
 
         .type-badge {
@@ -244,6 +271,15 @@ function getRedisCommanderHTML(): string {
             background: #fff5f5;
             border: 1px solid #fed7d7;
             color: #c53030;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+
+        .success {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            color: #2f855a;
             padding: 1rem;
             border-radius: 4px;
             margin-bottom: 1rem;
@@ -420,12 +456,16 @@ function getRedisCommanderHTML(): string {
                         <span id="selectedKeyType"></span>
                     </div>
                     <div>
+                        <button id="editBtn" onclick="toggleEditMode()" style="background: #28a745; display: none;">
+                            ✏️ Edit
+                        </button>
                         <button id="deleteBtn" onclick="deleteCurrentKey()" style="background: #dc3545; display: none;">
                             🗑️ Delete
                         </button>
                     </div>
                 </div>
                 <div class="content-body">
+                    <div id="statusMessage" style="display: none;"></div>
                     <div id="keyValue" class="empty-state">
                         <h3>Welcome to Redis Commander</h3>
                         <p>Select a key from the sidebar to view its content</p>
@@ -439,6 +479,8 @@ function getRedisCommanderHTML(): string {
         const API_BASE = '/redis-commander';
         let currentKey = null;
         let currentDatabase = 0;
+        let isEditMode = false;
+        let currentKeyData = null;
 
         // Initialize the application
         async function init() {
@@ -446,6 +488,152 @@ function getRedisCommanderHTML(): string {
             await loadDatabases();
             await loadKeyPatterns();
             await loadKeys();
+        }
+
+        // Show status message
+        function showMessage(message, type = 'success') {
+            const messageDiv = document.getElementById('statusMessage');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Toggle edit mode
+        function toggleEditMode() {
+            if (!currentKey || !currentKeyData) return;
+            
+            isEditMode = !isEditMode;
+            const editBtn = document.getElementById('editBtn');
+            
+            if (isEditMode) {
+                showEditInterface();
+                editBtn.textContent = '❌ Cancel';
+                editBtn.style.background = '#dc3545';
+            } else {
+                showViewInterface();
+                editBtn.textContent = '✏️ Edit';
+                editBtn.style.background = '#28a745';
+            }
+        }
+
+        // Show edit interface
+        function showEditInterface() {
+            const keyValue = document.getElementById('keyValue');
+            
+            let currentValue = currentKeyData.value;
+            if (typeof currentValue === 'object') {
+                currentValue = JSON.stringify(currentValue, null, 2);
+            }
+            
+            keyValue.innerHTML = \`
+                <div class="edit-mode">
+                    <h4>✏️ Editing: \${currentKey}</h4>
+                    <p>Modify the value below and click Save. JSON objects will be automatically parsed.</p>
+                </div>
+                <div class="editor-controls">
+                    <button onclick="saveValue()" style="background: #28a745;">💾 Save</button>
+                    <button onclick="toggleEditMode()" style="background: #6c757d;">❌ Cancel</button>
+                </div>
+                <textarea class="value-editor" id="valueEditor" placeholder="Enter new value...">\${currentValue}</textarea>
+                <div style="margin-bottom: 1rem;">
+                    <strong>Type:</strong> \${currentKeyData.type} | 
+                    <strong>TTL:</strong> \${currentKeyData.ttl === -1 ? 'No expiry' : currentKeyData.ttl + ' seconds'} | 
+                    <strong>Size:</strong> \${currentKeyData.size}
+                </div>
+            \`;
+        }
+
+        // Show view interface
+        function showViewInterface() {
+            if (currentKeyData) {
+                displayKeyValue(currentKeyData);
+            }
+        }
+
+        // Save edited value
+        async function saveValue() {
+            const editor = document.getElementById('valueEditor');
+            let newValue = editor.value;
+            
+            if (!newValue && newValue !== '') {
+                showMessage('Value cannot be empty', 'error');
+                return;
+            }
+            
+            // Try to parse as JSON if it looks like JSON
+            try {
+                if ((newValue.startsWith('{') && newValue.endsWith('}')) || 
+                    (newValue.startsWith('[') && newValue.endsWith(']'))) {
+                    // Test if it's valid JSON
+                    JSON.parse(newValue);
+                    // Keep as string for Redis, but validate it's proper JSON
+                }
+            } catch (e) {
+                if (!confirm('The value doesn\\'t appear to be valid JSON. Save as plain text?')) {
+                    return;
+                }
+            }
+            
+            try {
+                const response = await fetch(\`\${API_BASE}/key/\${encodeURIComponent(currentKey)}?database=\${currentDatabase}\`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ value: newValue })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Value updated successfully!', 'success');
+                    
+                    // Refresh the key value
+                    await selectKeyById(currentKey);
+                    
+                    // Exit edit mode
+                    isEditMode = false;
+                    const editBtn = document.getElementById('editBtn');
+                    editBtn.textContent = '✏️ Edit';
+                    editBtn.style.background = '#28a745';
+                    
+                    // Refresh key list to update size/type if changed
+                    await loadKeys();
+                } else {
+                    showMessage(\`Error updating value: \${result.error}\`, 'error');
+                }
+            } catch (error) {
+                showMessage(\`Error updating value: \${error.message}\`, 'error');
+            }
+        }
+
+        // Select key by ID (for refresh after edit)
+        async function selectKeyById(keyName) {
+            currentKey = keyName;
+            document.getElementById('selectedKeyName').textContent = keyName;
+            document.getElementById('editBtn').style.display = 'block';
+            document.getElementById('deleteBtn').style.display = 'block';
+            
+            // Load key value
+            try {
+                document.getElementById('keyValue').innerHTML = '<div class="loading">Loading value...</div>';
+                
+                const response = await fetch(\`\${API_BASE}/key/\${encodeURIComponent(keyName)}?database=\${currentDatabase}\`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentKeyData = result.data;
+                    displayKeyValue(result.data);
+                } else {
+                    document.getElementById('keyValue').innerHTML = \`<div class="error">Error: \${result.error}</div>\`;
+                }
+            } catch (error) {
+                document.getElementById('keyValue').innerHTML = \`<div class="error">Error loading value: \${error.message}</div>\`;
+            }
         }
 
         // Load Redis statistics
@@ -499,7 +687,7 @@ function getRedisCommanderHTML(): string {
         // Load key patterns
         async function loadKeyPatterns() {
             try {
-                const response = await fetch(API_BASE + '/patterns?database=' + currentDatabase);
+                const response = await fetch(\`\${API_BASE}/patterns?database=\${currentDatabase}\`);
                 const result = await response.json();
                 
                 if (result.success) {
@@ -535,7 +723,7 @@ function getRedisCommanderHTML(): string {
             try {
                 document.getElementById('keyList').innerHTML = '<div class="loading">Loading keys...</div>';
                 
-                const response = await fetch(API_BASE + '/keys?database=' + currentDatabase + '&pattern=' + encodeURIComponent(pattern) + '&limit=' + limit);
+                const response = await fetch(\`\${API_BASE}/keys?database=\${currentDatabase}&pattern=\${encodeURIComponent(pattern)}&limit=\${limit}\`);
                 const result = await response.json();
                 
                 if (result.success) {
@@ -586,22 +774,32 @@ function getRedisCommanderHTML(): string {
 
         // Select a key and load its value
         async function selectKey(keyName, element) {
+            // Reset edit mode if active
+            if (isEditMode) {
+                isEditMode = false;
+                const editBtn = document.getElementById('editBtn');
+                editBtn.textContent = '✏️ Edit';
+                editBtn.style.background = '#28a745';
+            }
+            
             // Update UI
             document.querySelectorAll('.key-item').forEach(item => item.classList.remove('selected'));
             element.classList.add('selected');
             
             currentKey = keyName;
             document.getElementById('selectedKeyName').textContent = keyName;
+            document.getElementById('editBtn').style.display = 'block';
             document.getElementById('deleteBtn').style.display = 'block';
             
             // Load key value
             try {
                 document.getElementById('keyValue').innerHTML = '<div class="loading">Loading value...</div>';
                 
-                const response = await fetch(API_BASE + '/key/' + encodeURIComponent(keyName) + '?database=' + currentDatabase);
+                const response = await fetch(\`\${API_BASE}/key/\${encodeURIComponent(keyName)}?database=\${currentDatabase}\`);
                 const result = await response.json();
                 
                 if (result.success) {
+                    currentKeyData = result.data;
                     displayKeyValue(result.data);
                 } else {
                     document.getElementById('keyValue').innerHTML = \`<div class="error">Error: \${result.error}</div>\`;
@@ -658,16 +856,18 @@ function getRedisCommanderHTML(): string {
             }
             
             try {
-                const response = await fetch(API_BASE + '/key/' + encodeURIComponent(currentKey) + '?database=' + currentDatabase, {
+                const response = await fetch(\`\${API_BASE}/key/\${encodeURIComponent(currentKey)}?database=\${currentDatabase}\`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('Key deleted successfully');
+                    showMessage('Key deleted successfully', 'success');
                     currentKey = null;
+                    currentKeyData = null;
                     document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
                     document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('editBtn').style.display = 'none';
                     document.getElementById('deleteBtn').style.display = 'none';
                     document.getElementById('keyValue').innerHTML = \`
                         <div class="empty-state">
@@ -678,10 +878,10 @@ function getRedisCommanderHTML(): string {
                     await loadKeys(); // Refresh key list
                     await refreshStats(); // Refresh stats
                 } else {
-                    alert(\`Error deleting key: \${result.error}\`);
+                    showMessage(\`Error deleting key: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                alert(\`Error deleting key: \${error.message}\`);
+                showMessage(\`Error deleting key: \${error.message}\`, 'error');
             }
         }
 
@@ -694,7 +894,7 @@ function getRedisCommanderHTML(): string {
             }
             
             try {
-                const response = await fetch(API_BASE + '/keys/pattern?database=' + currentDatabase, {
+                const response = await fetch(\`\${API_BASE}/keys/pattern?database=\${currentDatabase}\`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
@@ -704,14 +904,16 @@ function getRedisCommanderHTML(): string {
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(\`Successfully deleted \${result.data.deletedCount} keys\`);
+                    showMessage(\`Successfully deleted \${result.data.deletedCount} keys\`, 'success');
                     await loadKeys();
                     await refreshStats();
                     await loadKeyPatterns();
                     // Clear selected key if it was deleted
                     currentKey = null;
+                    currentKeyData = null;
                     document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
                     document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('editBtn').style.display = 'none';
                     document.getElementById('deleteBtn').style.display = 'none';
                     document.getElementById('keyValue').innerHTML = \`
                         <div class="empty-state">
@@ -720,10 +922,10 @@ function getRedisCommanderHTML(): string {
                         </div>
                     \`;
                 } else {
-                    alert(\`Error deleting keys: \${result.error}\`);
+                    showMessage(\`Error deleting keys: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                alert(\`Error deleting keys: \${error.message}\`);
+                showMessage(\`Error deleting keys: \${error.message}\`, 'error');
             }
         }
 
@@ -738,21 +940,23 @@ function getRedisCommanderHTML(): string {
             }
             
             try {
-                const response = await fetch(API_BASE + '/database/clear?database=' + currentDatabase, {
+                const response = await fetch(\`\${API_BASE}/database/clear?database=\${currentDatabase}\`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(\`Database \${currentDatabase} cleared successfully\`);
+                    showMessage(\`Database \${currentDatabase} cleared successfully\`, 'success');
                     await loadKeys();
                     await refreshStats();
                     await loadDatabases();
                     await loadKeyPatterns();
                     // Reset UI
                     currentKey = null;
+                    currentKeyData = null;
                     document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
                     document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('editBtn').style.display = 'none';
                     document.getElementById('deleteBtn').style.display = 'none';
                     document.getElementById('keyValue').innerHTML = \`
                         <div class="empty-state">
@@ -761,10 +965,10 @@ function getRedisCommanderHTML(): string {
                         </div>
                     \`;
                 } else {
-                    alert(\`Error clearing database: \${result.error}\`);
+                    showMessage(\`Error clearing database: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                alert(\`Error clearing database: \${error.message}\`);
+                showMessage(\`Error clearing database: \${error.message}\`, 'error');
             }
         }
 
@@ -776,26 +980,28 @@ function getRedisCommanderHTML(): string {
             
             const confirmation = prompt('Type "DELETE ALL" to confirm:');
             if (confirmation !== 'DELETE ALL') {
-                alert('Operation cancelled');
+                showMessage('Operation cancelled', 'error');
                 return;
             }
             
             try {
-                const response = await fetch(API_BASE + '/databases/clear', {
+                const response = await fetch(\`\${API_BASE}/databases/clear\`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('All databases cleared successfully');
+                    showMessage('All databases cleared successfully', 'success');
                     await loadKeys();
                     await refreshStats();
                     await loadDatabases();
                     await loadKeyPatterns();
                     // Reset UI
                     currentKey = null;
+                    currentKeyData = null;
                     document.getElementById('selectedKeyName').textContent = 'Select a key to view its value';
                     document.getElementById('selectedKeyType').innerHTML = '';
+                    document.getElementById('editBtn').style.display = 'none';
                     document.getElementById('deleteBtn').style.display = 'none';
                     document.getElementById('keyValue').innerHTML = \`
                         <div class="empty-state">
@@ -804,10 +1010,10 @@ function getRedisCommanderHTML(): string {
                         </div>
                     \`;
                 } else {
-                    alert(\`Error clearing databases: \${result.error}\`);
+                    showMessage(\`Error clearing databases: \${result.error}\`, 'error');
                 }
             } catch (error) {
-                alert(\`Error clearing databases: \${error.message}\`);
+                showMessage(\`Error clearing databases: \${error.message}\`, 'error');
             }
         }
 
