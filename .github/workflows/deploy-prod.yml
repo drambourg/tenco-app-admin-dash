@@ -1,0 +1,204 @@
+name: Tenco App Dashboard - Production 
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Branch, tag or commit to deploy'
+        default: main
+        required: true
+
+env:
+  PROJECT_ID: "${{ secrets.GCLOUD_PROJECT_ID }}"
+  REGION: ${{ vars.GCLOUD_REGION || 'europe-west1'}}
+  SERVICE: admin-app-tenco
+  GCLOUD_SERVICE_KEY: ${{secrets.GCLOUD_SERVICE_KEY}}
+  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME || 'admin-app-tenco-staging' }}
+  SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+  # 🔒 AUTHENTICATION CREDENTIALS
+  ADMIN_USERNAME: ${{ vars.ADMIN_USERNAME || 'admin' }}
+  ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD  }}
+
+  MEMORY: ${{ vars.MEMORY || '1Gi' }}
+  CPU: ${{ vars.CPU || '2' }}
+  MAX_INSTANCES: ${{ vars.MAX_INSTANCES || '1' }}
+  MIN_INSTANCES: ${{ vars.MIN_INSTANCES || '1' }}
+  PORT: ${{ vars.PORT || '8080' }}
+  CONCURRENCY: ${{ vars.CONCURRENCY || '1000' }}
+  TIMEOUT: ${{ vars.TIMEOUT || '3600' }}
+
+  SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL}}
+ 
+
+  REDIS_HOST: ${{ vars.REDIS_HOST }}
+  REDIS_PORT: ${{ vars.REDIS_PORT || '6379' }}
+
+  #  EMQX_BROKER: sample.gcp.emqxcloud.com
+  EMQX_BROKER: ${{ vars.EMQX_BROKER }}
+  EMQX_PORT: ${{ vars.EMQX_PORT || '1883' }}
+  EMQX_USERNAME: ${{ vars.EMQX_USERNAME }}
+  EMQX_PASSWORD: ${{ secrets.EMQX_PASSWORD }}
+  EMQX_QOS: ${{ vars.EMQX_QOS || '1' }}
+  EMQX_TOPIC: ${{ vars.EMQX_TOPIC || 'data' }}
+
+  VPC_CONNECTOR: ${{ vars.VPC_CONNECTOR || 'production-vpc-serverless' }}
+  VPC_EGRESS: ${{ vars.VPC_EGRESS || 'private-ranges-only' }}
+
+jobs:
+  deploy-cloud-run:
+    name: Deploy Cloud Run
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    outputs:
+      service_url: ${{ steps.deploy.outputs.SERVICE_URL }} 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🕵️
+        uses: actions/checkout@v4
+      
+      - name: Use Node.js 🦄
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.14.0'
+      
+      - name: Install Dependencies 🔧
+        run: |
+          npm install --immutable
+
+      - name: Build Project 🏗️
+        run: |
+          npm run build
+
+      - name: Verify Required Variables ✅
+        run: |
+          required_vars=("PROJECT_ID" "SERVICE_ACCOUNT" "GCLOUD_SERVICE_KEY" "REDIS_HOST" "EMQX_BROKER" "EMQX_USERNAME" "EMQX_PASSWORD" "ADMIN_PASSWORD")
+          for var in "${required_vars[@]}"; do
+            if [ -z "${!var}" ]; then
+              echo "Error: $var is not set."
+              exit 1
+            fi
+          done
+
+      - name: Google Auth 🔒
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ env.GCLOUD_SERVICE_KEY }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Verify VPC Connector exists 🌐
+        run: |
+          echo "Checking VPC Connector: $VPC_CONNECTOR"
+          # Vérifier que le VPC Connector existe
+          if ! gcloud compute networks vpc-access connectors describe $VPC_CONNECTOR --region=$REGION --project=$PROJECT_ID > /dev/null 2>&1; then
+            echo "Error: VPC Connector '$VPC_CONNECTOR' not found in region $REGION"
+            echo "Available VPC Connectors:"
+            gcloud compute networks vpc-access connectors list --project=$PROJECT_ID
+            exit 1
+          fi
+          echo "✅ VPC Connector $VPC_CONNECTOR found"
+
+      - name: Set up Docker Buildx 🐳
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create temporary Dockerfile
+        run: |
+          cat > Dockerfile << 'EOF'
+          FROM node:20-slim
+          WORKDIR /app
+          COPY dist/ ./dist/
+          COPY package*.json ./
+          RUN npm ci --only=production
+          EXPOSE ${{ env.PORT }}
+          CMD ["node", "dist/index.js"]
+          EOF
+
+      - name: Configure Docker for EU GCR
+        run: |
+          gcloud auth configure-docker eu.gcr.io --quiet
+
+      - name: Build and push Docker image 🏗️
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: eu.gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run 🚀
+        id: deploy
+        run: |
+          ENV_VARS="NODE_ENV=stage,DEBUG=$DEBUG,GCP_LOGGER_NAME=$GCP_LOGGER_NAME,GCP_PROJECT_ID=$PROJECT_ID,REDIS_HOST=$REDIS_HOST,REDIS_PORT=$REDIS_PORT,SERVICE_SENSOR_DATA_DISPATCHER_URL=$SERVICE_SENSOR_DATA_DISPATCHER_URL,EMQX_BROKER=$EMQX_BROKER,EMQX_PORT=$EMQX_PORT,EMQX_USERNAME=$EMQX_USERNAME,EMQX_PASSWORD=$EMQX_PASSWORD,EMQX_QOS=$EMQX_QOS,EMQX_TOPIC=$EMQX_TOPIC,ADMIN_PASSWORD=$ADMIN_PASSWORD,ADMIN_USERNAME=$ADMIN_USERNAME"
+          
+          # Déploiement sur Cloud Run avec gcloud directement
+          gcloud run deploy $SERVICE \
+            --project=$PROJECT_ID \
+            --region=$REGION \
+            --image=eu.gcr.io/$PROJECT_ID/$SERVICE:${{ github.sha }} \
+            --port=$PORT \
+            --memory=$MEMORY \
+            --cpu=$CPU \
+            --max-instances=$MAX_INSTANCES \
+            --min-instances=$MIN_INSTANCES \
+            --concurrency=$CONCURRENCY \
+            --timeout=${TIMEOUT}s \
+            --service-account=$SERVICE_ACCOUNT \
+            --set-env-vars=$ENV_VARS \
+            --vpc-connector=$VPC_CONNECTOR \
+            --vpc-egress=$VPC_EGRESS \
+            --platform=managed \
+            --allow-unauthenticated
+            
+          # Obtenir l'URL du service déployé
+          SERVICE_URL=$(gcloud run services describe $SERVICE --region=$REGION --format="value(status.url)")
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_ENV
+      
+      - name: Verify VPC Connection 🔍
+        run: |
+          echo "✅ Cloud Run service deployed with VPC configuration:"
+          echo "   🌐 VPC Connector: $VPC_CONNECTOR"
+          echo "   🚪 VPC Egress: $VPC_EGRESS"
+          echo "   🗃️ Redis Host: $REDIS_HOST:$REDIS_PORT"
+          echo "   📡 EMQX Broker: $EMQX_BROKER:$EMQX_PORT"
+          echo ""
+          echo "🔗 Service URL: ${{ steps.deploy.outputs.url }}"
+          echo ""
+          echo "📝 Note: The service can now access private resources in the tenco-staging-vpc network"
+
+      - name: Verify Enhanced Configuration 🔍
+        run: |
+          echo "✅ Cloud Run service deployed with enhanced configuration:"
+          echo ""
+          echo "🚀 PERFORMANCE:"
+          echo "   💾 Memory: $MEMORY"
+          echo "   🖥️  CPU: $CPU cores"
+          echo "   ⏱️  Timeout: ${TIMEOUT}s ($(($TIMEOUT / 60)) minutes)"
+          echo "   🔄 Concurrency: $CONCURRENCY requests"
+          echo "   📊 Instances: $MIN_INSTANCES-$MAX_INSTANCES"
+          echo ""
+          echo "🌐 NETWORK:"
+          echo "   🌐 VPC Connector: $VPC_CONNECTOR"
+          echo "   🚪 VPC Egress: $VPC_EGRESS"
+          echo "   🗃️ Redis: $REDIS_HOST:$REDIS_PORT"
+          echo ""
+          echo "📡 EMQX CONFIGURATION:"
+          echo "   🔌 Broker: $EMQX_BROKER:$EMQX_PORT"
+          echo "   ⏱️  Keep-Alive: ${EMQX_KEEP_ALIVE}s ($(($EMQX_KEEP_ALIVE / 60)) minutes)"
+          echo "   🔗 Connect Timeout: ${EMQX_CONNECT_TIMEOUT}ms"
+          echo "   🔄 Reconnect Period: ${EMQX_RECONNECT_PERIOD}ms"
+          echo "   🎯 Long Simulation: $EMQX_LONG_SIMULATION"
+          echo ""
+          echo "🔗 Service URL: ${{ steps.deploy.outputs.url }}"
+          echo ""
+          echo "📝 NOTES:"
+          echo "   ✅ Optimized for long-running IoT simulations"
+          echo "   ✅ EMQX connections can persist up to $(($EMQX_KEEP_ALIVE / 60)) minutes"
+          echo "   ✅ Cloud Run requests can run up to $(($TIMEOUT / 60)) minutes"
+          echo "   ✅ Gen2 execution environment with no CPU throttling"
+
+      - name: Show Cloud Run Output 👀
+        run: echo ${{ steps.deploy.outputs.url }}
