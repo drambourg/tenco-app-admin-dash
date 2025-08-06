@@ -1,48 +1,48 @@
-name: Tenco App Dashboard - Staging 
+name: Tenco App Dashboard - Production 
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: 'Branch, tag or commit to deploy'
-        default: dev
+        default: main
         required: true
 
 env:
-  PROJECT_ID: "${{ secrets.GCLOUD_PROJECT_ID_STAGING }}"
+  PROJECT_ID: "${{ secrets.GCLOUD_PROJECT_ID }}"
   REGION: ${{ vars.GCLOUD_REGION || 'europe-west1'}}
   SERVICE: admin-app-tenco
-  GCLOUD_SERVICE_KEY: ${{secrets.GCLOUD_SERVICE_KEY_STAGING}}
-  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME_STAGING || 'admin-app-tenco-staging' }}
-  SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT_STAGING }}
+  GCLOUD_SERVICE_KEY: ${{secrets.GCLOUD_SERVICE_KEY}}
+  GCP_LOGGER_NAME: ${{ vars.GCP_LOGGER_NAME || 'admin-app-tenco-staging' }}
+  SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
   # 🔒 AUTHENTICATION CREDENTIALS
-  ADMIN_USERNAME: ${{ vars.ADMIN_USERNAME_STAGING || 'admin' }}
-  ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD_STAGING }}
+  ADMIN_USERNAME: ${{ vars.ADMIN_USERNAME || 'admin' }}
+  ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD  }}
 
-  MEMORY: ${{ vars.MEMORY_STAGING || '1Gi' }}
-  CPU: ${{ vars.CPU_STAGING || '2' }}
-  MAX_INSTANCES: ${{ vars.MAX_INSTANCES_STAGING || '1' }}
-  MIN_INSTANCES: ${{ vars.MIN_INSTANCES_STAGING || '1' }}
-  PORT: ${{ vars.PORT_STAGING || '8080' }}
-  CONCURRENCY: ${{ vars.CONCURRENCY_STAGING || '1000' }}
-  TIMEOUT: ${{ vars.TIMEOUT_STAGING || '3600' }}
+  MEMORY: ${{ vars.MEMORY || '1Gi' }}
+  CPU: ${{ vars.CPU || '2' }}
+  MAX_INSTANCES: ${{ vars.MAX_INSTANCES || '1' }}
+  MIN_INSTANCES: ${{ vars.MIN_INSTANCES || '1' }}
+  PORT: ${{ vars.PORT || '8080' }}
+  CONCURRENCY: ${{ vars.CONCURRENCY || '1000' }}
+  TIMEOUT: ${{ vars.TIMEOUT || '3600' }}
 
-  SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL_STAGING}}
+  SERVICE_SENSOR_DATA_DISPATCHER_URL: ${{vars.SERVICE_SENSOR_DATA_DISPATCHER_URL}}
  
 
-  REDIS_HOST: ${{ vars.REDIS_HOST_STAGING }}
-  REDIS_PORT: ${{ vars.REDIS_PORT_STAGING || '6379' }}
+  REDIS_HOST: ${{ vars.REDIS_HOST }}
+  REDIS_PORT: ${{ vars.REDIS_PORT || '6379' }}
 
   #  EMQX_BROKER: sample.gcp.emqxcloud.com
-  EMQX_BROKER: ${{ vars.EMQX_BROKER_STAGING }}
-  EMQX_PORT: ${{ vars.EMQX_PORT_STAGING || '1883' }}
-  EMQX_USERNAME: ${{ vars.EMQX_USERNAME_STAGING }}
-  EMQX_PASSWORD: ${{ secrets.EMQX_PASSWORD_STAGING }}
-  EMQX_QOS: ${{ vars.EMQX_QOS_STAGING || '1' }}
-  EMQX_TOPIC: ${{ vars.EMQX_TOPIC_STAGING || 'data' }}
+  EMQX_BROKER: ${{ vars.EMQX_BROKER }}
+  EMQX_PORT: ${{ vars.EMQX_PORT || '1883' }}
+  EMQX_USERNAME: ${{ vars.EMQX_USERNAME }}
+  EMQX_PASSWORD: ${{ secrets.EMQX_PASSWORD }}
+  EMQX_QOS: ${{ vars.EMQX_QOS || '1' }}
+  EMQX_TOPIC: ${{ vars.EMQX_TOPIC || 'data' }}
 
-  VPC_CONNECTOR: ${{ vars.VPC_CONNECTOR_STAGING || 'staging-vpc-serverless' }}
-  VPC_EGRESS: ${{ vars.VPC_EGRESS_STAGING || 'private-ranges-only' }}
+  VPC_CONNECTOR: ${{ vars.VPC_CONNECTOR || 'production-vpc-serverless' }}
+  VPC_EGRESS: ${{ vars.VPC_EGRESS || 'private-ranges-only' }}
 
 jobs:
   deploy-cloud-run:
