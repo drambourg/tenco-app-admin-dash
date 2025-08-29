@@ -22,3 +22,10 @@ export interface GcpLoggerProps {
   /** Whether to include Cloud Run instance information */
   withCloudRunInfos?: boolean;
 }
+
+export interface RateLimitEntry {
+  count: number;
+  firstLogTime: number;
+  lastLogTime: number;
+  suppressedCount: number;
+}
